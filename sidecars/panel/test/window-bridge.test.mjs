@@ -5788,3 +5788,274 @@ test('Quota card ordering aligns with Official Usage, bars/rings use Scheme B re
     globalThis.document = prevDoc;
   }
 });
+
+test('TurnUsageCardWidget aggregates per-turn models/pools/quota deductions/context delta, aligns via React Fiber across virtual scrolling, suppresses streaming turns, and disposes cleanly', async () => {
+  const {
+    buildTurnUsageSummaries,
+    classifyTurnModelRoleAndPool,
+    disposeTurnUsageCardsInViewport,
+    syncTurnUsageCardsInViewport,
+  } = await import('../src/components/widgets/TurnUsageCardWidget.js');
+  const { setI18nLanguage } = await import('../src/i18n/index.js');
+
+  const quotas = {
+    pools: [
+      {
+        id: 'gemini',
+        label: 'Gemini',
+        usedPct: 50,
+        remainingPct: 50,
+        weeklyUsedPct: 20,
+        weeklyRemainingPct: 80,
+        cycle5h: { tokens: 25_000_000, costUsd: 12.5 },
+        cycle7d: { tokens: 40_000_000, costUsd: 20.0 },
+      },
+      {
+        id: 'argon',
+        label: 'Gemini 4 Argon',
+        weeklyUsedPct: 10,
+        weeklyRemainingPct: 90,
+        cycle7d: { tokens: 2_000_000, costUsd: 1.0 },
+      },
+    ],
+  };
+
+  // 1. Verify role & pool classification
+  assert.deepEqual(
+    classifyTurnModelRoleAndPool(
+      { modelLabel: 'Gemini 4 Argon (High)', modelShort: 'argon-4-high' },
+      quotas
+    ),
+    { roleKey: 'Main', roleBadgeClass: 'role-main', poolFamily: 'Argon' }
+  );
+  assert.deepEqual(
+    classifyTurnModelRoleAndPool(
+      { modelLabel: 'Orchestrator Worker', modelShort: 'worker-agy-hydrogen' },
+      quotas
+    ),
+    { roleKey: 'Exec', roleBadgeClass: 'role-exec', poolFamily: 'Gemini' }
+  );
+  assert.deepEqual(
+    classifyTurnModelRoleAndPool(
+      { modelLabel: 'Claude Sonnet 4.6', isSubagent: true },
+      quotas
+    ),
+    { roleKey: 'Sub', roleBadgeClass: 'role-sub', poolFamily: 'Claude' }
+  );
+
+  // 2. Build turn summaries across Virtualized turns (#11, #12, and streaming #13)
+  const telemetry = {
+    settings: { language: 'zh-CN', enableWindowOverlay: true, windowMountMode: 'composer' },
+    quotas,
+    activeConversation: {
+      cascadeId: 'turn-test-conv',
+      isRunning: true,
+      contextLimitTokens: 500_000,
+      context: { totalTokens: 250_000, limitTokens: 500_000 },
+      recentSteps: [
+        // Turn 11 (first turn in sliced window, baseline estimated from cacheReadTokens = 180k -> end 200k = +20k = +4.0%)
+        {
+          stepIndex: 40,
+          rootTurnIndex: 11,
+          turnIndex: 11,
+          createdAtMs: 1700000010000,
+          totalDurationSec: 6.2,
+          modelLabel: 'Gemini 3.8 Pro',
+          modelShort: '3.8-pro',
+          inputTokens: 15_000,
+          cacheReadTokens: 180_000,
+          outputTokens: 5_000,
+          contextTokens: 200_000,
+          costUsd: 0.25,
+        },
+        // Turn 12 (2 Argon main calls + 3 Hydrogen worker calls, end context 224,000 -> +24k / 500k = +4.8%)
+        {
+          stepIndex: 45,
+          rootTurnIndex: 12,
+          turnIndex: 12,
+          createdAtMs: 1700000100000,
+          totalDurationSec: 5.0,
+          modelLabel: 'Gemini 4 Argon (High)',
+          modelShort: 'argon-4-high',
+          inputTokens: 8_000,
+          cacheReadTokens: 80_000,
+          outputTokens: 2_600,
+          contextTokens: 210_000,
+          costUsd: 0.06,
+        },
+        {
+          stepIndex: 46,
+          rootTurnIndex: 12,
+          turnIndex: 12,
+          createdAtMs: 1700000105000,
+          totalDurationSec: 3.4,
+          modelLabel: 'Orchestrator Worker',
+          modelShort: 'worker-agy-hydrogen',
+          inputTokens: 4_000,
+          cacheReadTokens: 35_000,
+          outputTokens: 1_000,
+          contextTokens: 39_000,
+          costUsd: 0.2,
+        },
+        {
+          stepIndex: 47,
+          rootTurnIndex: 12,
+          turnIndex: 12,
+          createdAtMs: 1700000109000,
+          totalDurationSec: 3.0,
+          modelLabel: 'Orchestrator Worker',
+          modelShort: 'worker-agy-hydrogen',
+          inputTokens: 4_000,
+          cacheReadTokens: 37_000,
+          outputTokens: 1_000,
+          contextTokens: 41_000,
+          costUsd: 0.2,
+        },
+        {
+          stepIndex: 48,
+          rootTurnIndex: 12,
+          turnIndex: 12,
+          createdAtMs: 1700000112000,
+          totalDurationSec: 3.0,
+          modelLabel: 'Orchestrator Worker',
+          modelShort: 'worker-agy-hydrogen',
+          inputTokens: 4_000,
+          cacheReadTokens: 37_000,
+          outputTokens: 1_000,
+          contextTokens: 41_000,
+          costUsd: 0.2,
+        },
+        {
+          stepIndex: 49,
+          rootTurnIndex: 12,
+          turnIndex: 12,
+          createdAtMs: 1700000118000,
+          totalDurationSec: 4.0,
+          modelLabel: 'Gemini 4 Argon (High)',
+          modelShort: 'argon-4-high',
+          inputTokens: 10_000,
+          cacheReadTokens: 82_000,
+          outputTokens: 2_600,
+          contextTokens: 224_000,
+          costUsd: 0.06,
+        },
+        // Turn 13 (currently streaming)
+        {
+          stepIndex: 52,
+          rootTurnIndex: 13,
+          turnIndex: 13,
+          createdAtMs: 1700000200000,
+          totalDurationSec: 2.1,
+          modelLabel: 'Gemini 4 Argon (High)',
+          modelShort: 'argon-4-high',
+          inputTokens: 6_000,
+          cacheReadTokens: 224_000,
+          outputTokens: 1_000,
+          contextTokens: 231_000,
+          costUsd: 0.05,
+        },
+      ],
+    },
+  };
+
+  const summaries = buildTurnUsageSummaries(telemetry);
+  assert.equal(summaries.length, 3);
+  const turn12 = summaries.find((s) => s.turnIndex === 12);
+  assert.ok(turn12);
+  assert.equal(turn12.totalSteps, 5);
+  assert.equal(turn12.durationText, '18.4s');
+  assert.equal(turn12.contextDeltaText, '+4.8%');
+  assert.equal(turn12.models.length, 2);
+  assert.equal(turn12.models[0].roleKey, 'Main');
+  assert.equal(turn12.models[0].displayName, 'Gemini 4 Argon (High)');
+  assert.equal(turn12.models[0].poolFamily, 'Argon');
+  assert.equal(turn12.models[0].calls, 2);
+  assert.equal(turn12.models[0].sharePct, 60);
+  assert.equal(turn12.models[1].roleKey, 'Exec');
+  assert.equal(turn12.models[1].displayName, 'worker-agy-hydrogen');
+  assert.equal(turn12.models[1].poolFamily, 'Gemini');
+  assert.equal(turn12.models[1].calls, 3);
+  assert.equal(turn12.models[1].sharePct, 40);
+  assert.deepEqual(
+    turn12.quotaDeductions.map((q) => q.tag),
+    ['G5h', 'G周', 'A周']
+  );
+
+  // 3. Test DOM virtualized Fiber matching & streaming suppression
+  const prevDoc = globalThis.document;
+  const { document: mockDoc, body, makeElement } = createMockDom();
+  globalThis.document = mockDoc;
+
+  try {
+    setI18nLanguage('zh-CN');
+    // Simulate virtual scrolling where ONLY Turn #12 (completed) and Turn #13 (streaming) are mounted in the DOM
+    const wrap12 = makeElement('div');
+    wrap12.__reactFiber$test = {
+      return: {
+        memoizedProps: {
+          isRunning: false,
+          container: {
+            steps: [
+              { metadata: { createdAt: { seconds: 1700000100n, nanos: 0 } } },
+              { metadata: { createdAt: { seconds: 1700000118n, nanos: 0 } } },
+            ],
+          },
+        },
+      },
+    };
+    const resp12 = makeElement('div');
+    resp12.setAttribute('data-testid', 'agent-response');
+    wrap12.appendChild(resp12);
+    body.appendChild(wrap12);
+
+    const wrap13 = makeElement('div');
+    wrap13.__reactFiber$test = {
+      return: {
+        memoizedProps: {
+          isRunning: true,
+          container: {
+            steps: [{ metadata: { createdAt: { seconds: 1700000200n, nanos: 0 } } }],
+          },
+        },
+      },
+    };
+    const resp13 = makeElement('div');
+    resp13.setAttribute('data-testid', 'agent-response');
+    wrap13.appendChild(resp13);
+    body.appendChild(wrap13);
+
+    const mountedCount = syncTurnUsageCardsInViewport({ rootDoc: mockDoc, telemetry });
+    assert.equal(mountedCount, 1, 'Mounts Turn #12 card while suppressing streaming Turn #13');
+
+    const card12 = resp12.querySelector('.wm-turn-usage-card');
+    assert.ok(card12, 'Turn #12 card mounted inside completed response');
+    assert.equal(card12.getAttribute('data-turn-index'), '12');
+    assert.ok(
+      card12.querySelector('.wm-turn-title').textContent.startsWith('#第12轮 · 完成于 '),
+      'Header shows exact virtualized turn number #第12轮 (not #第1轮)'
+    );
+    assert.equal(card12.querySelector('.wm-turn-meta').textContent, '共 5 步 · 总耗时 18.4s');
+    assert.equal(resp13.querySelector('.wm-turn-usage-card'), null, 'Streaming Turn #13 has no card yet');
+
+    // Second sync with identical telemetry reuses exact card DOM node via data-sig
+    syncTurnUsageCardsInViewport({ rootDoc: mockDoc, telemetry });
+    assert.equal(resp12.querySelector('.wm-turn-usage-card'), card12, 'Idempotent DOM patch when signature matches');
+
+    // Once Turn #13 finishes streaming (isRunning -> false), its card mounts immediately
+    wrap13.__reactFiber$test.return.memoizedProps.isRunning = false;
+    telemetry.activeConversation.isRunning = false;
+    const mountedAfterFinish = syncTurnUsageCardsInViewport({ rootDoc: mockDoc, telemetry });
+    assert.equal(mountedAfterFinish, 2);
+    const card13 = resp13.querySelector('.wm-turn-usage-card');
+    assert.ok(card13);
+    assert.equal(card13.getAttribute('data-turn-index'), '13');
+
+    // Dispose cleans up all cards and style tag
+    disposeTurnUsageCardsInViewport(mockDoc);
+    assert.equal(resp12.querySelector('.wm-turn-usage-card'), null);
+    assert.equal(resp13.querySelector('.wm-turn-usage-card'), null);
+    assert.equal(mockDoc.getElementById('ag-usage-monitor-turn-styles'), null);
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});

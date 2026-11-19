@@ -549,6 +549,7 @@ export function buildBundle(panelDir = PANEL_DIR) {
     'src/registries/widgetRegistry.js',
     'src/registries/stepColumnRegistry.js',
     'src/components/widgets/CapsuleBarWidget.js',
+    'src/components/widgets/TurnUsageCardWidget.js',
     'src/components/widgets/StepTableWidget.js',
     'src/components/settings/structurePreviewMock.js',
     'src/components/settings/CollapsibleSection.js',

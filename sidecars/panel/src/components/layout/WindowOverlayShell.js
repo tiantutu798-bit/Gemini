@@ -36,6 +36,10 @@ import {
   resolveMultiSessionCapsuleState,
   syncCapsuleSlotNodes,
 } from '../widgets/CapsuleBarWidget.js';
+import {
+  disposeTurnUsageCardsInViewport,
+  syncTurnUsageCardsInViewport,
+} from '../widgets/TurnUsageCardWidget.js';
 import { LiveActivityWidget } from '../widgets/LiveActivityWidget.js';
 import { createDynamicWidgetHost } from '../../registries/widgetRegistry.js';
 import {
@@ -2182,6 +2186,35 @@ export function mountWindowOverlay() {
     }
   }
 
+  let turnCardsRafId = 0;
+
+  function syncTurnCardsNow() {
+    if (disposed) return;
+    const curTel = telemetryStore.getState().telemetry;
+    const mountMode = normalizeClientWindowMountMode(
+      curTel?.settings?.windowMountMode,
+      curTel?.settings?.enableWindowOverlay
+    );
+    if (!curTel || curTel.settings?.enableWindowOverlay === false || mountMode === 'sidebar') {
+      disposeTurnUsageCardsInViewport(document);
+      return;
+    }
+    syncTurnUsageCardsInViewport({ rootDoc: document, telemetry: curTel });
+  }
+
+  function scheduleTurnCardsSync() {
+    if (disposed) return;
+    if (typeof requestAnimationFrame === 'function') {
+      if (turnCardsRafId) return;
+      turnCardsRafId = requestAnimationFrame(() => {
+        turnCardsRafId = 0;
+        syncTurnCardsNow();
+      });
+    } else {
+      syncTurnCardsNow();
+    }
+  }
+
   function refreshActiveViewScrollbars() {
     const activeView = uiStore.getState().activeView;
     const refs = appInstance.refs;
@@ -2364,8 +2397,11 @@ export function mountWindowOverlay() {
       multiRunningWidget.refs.stopLiveTicker();
 
       applyCapsuleSlots(slotKeys, { hasTelemetry: false });
+      disposeTurnUsageCardsInViewport(document);
       return;
     }
+
+    syncTurnCardsNow();
 
     const { agents, scopedConv: overviewScopedConv, ctxAgent, aggregated } =
       resolveScopedConversation(telemetry, 'all', uiSt.ctxInspectorAgentId);
@@ -2617,11 +2653,37 @@ export function mountWindowOverlay() {
       }
       if (document.body) {
         hostDomObserver = new MutationObserver((records) => {
-          if (
+          const isInternalOnly =
             Array.isArray(records) &&
             records.length > 0 &&
-            records.every((r) => r?.target === capsuleHost || r?.target === portalHost)
-          ) {
+            records.every((r) => {
+              const tgt = r?.target;
+              if (!tgt) return true;
+              if (tgt === capsuleHost || tgt === portalHost) return true;
+              if (tgt.id === 'ag-usage-monitor-turn-styles') return true;
+              if (tgt.getAttribute?.('data-ag-turn-usage') === 'true') return true;
+              if (
+                typeof tgt.closest === 'function' &&
+                tgt.closest('[data-ag-turn-usage="true"]')
+              ) {
+                return true;
+              }
+              const added = Array.from(r.addedNodes || []);
+              const removed = Array.from(r.removedNodes || []);
+              const changedNodes = [...added, ...removed];
+              if (
+                changedNodes.length > 0 &&
+                changedNodes.every(
+                  (n) =>
+                    n?.id === 'ag-usage-monitor-turn-styles' ||
+                    n?.getAttribute?.('data-ag-turn-usage') === 'true'
+                )
+              ) {
+                return true;
+              }
+              return false;
+            });
+          if (isInternalOnly) {
             return;
           }
           syncHostRouteIfChanged();
@@ -2632,6 +2694,7 @@ export function mountWindowOverlay() {
           if (!isDockPlacementSynced(dock)) {
             scheduleDockSync();
           }
+          scheduleTurnCardsSync();
         });
         hostDomObserver.observe(document.body, {
           childList: true,
@@ -2778,6 +2841,11 @@ export function mountWindowOverlay() {
         cancelAnimationFrame(dockRafId);
         dockRafId = 0;
       }
+      if (turnCardsRafId && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(turnCardsRafId);
+        turnCardsRafId = 0;
+      }
+      disposeTurnUsageCardsInViewport(document);
       stopPolling();
       stopAsyncTelemetryLoop();
       unsubStore();

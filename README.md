@@ -13,7 +13,7 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
 
 **English** · [简体中文完整介绍 (README.zh-CN.md)](README.zh-CN.md)
 
-[**✨ Key Innovations (Pinned)**](#highlighted-innovations-pinned) · [3 Core Screenshots](#1-live-showcase-3-core-screenshots) · [6-Slot Composer Bar](#2-permanent-6-slot-composer-quota-bar) · [Remaining Gradient](#3-remaining-first-bars--continuous-blueamberred-gradient) · [Installation](#installation) · [Features](#features) · [Development](#local-development)
+[**✨ Key Innovations (Pinned)**](#highlighted-innovations-pinned) · [4 Core Screenshots](#1-live-showcase-4-core-screenshots) · [6-Slot Composer Bar](#2-permanent-6-slot-composer-quota-bar) · [Remaining Gradient](#3-remaining-first-bars--continuous-blueamberred-gradient) · [Per-Turn Inline Card](#4-per-turn-inline-usage-summary-card-in-chat-stream) · [Installation](#installation) · [Features](#features) · [Development](#local-development)
 
 <br />
 
@@ -34,7 +34,7 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
 > [!IMPORTANT]
 > This repository is a **GNU GPL v3.0-only derivative fork** of [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor) (`v1.5.1`), modified on 2026-11. All upstream copyright notices, full Git commit history, and GPL-3.0-only licensing terms are preserved intact while introducing the core UX and visual upgrades highlighted below.
 
-### 1. Live Showcase (3 Core Screenshots)
+### 1. Live Showcase (4 Core Screenshots)
 
 <table>
   <tr>
@@ -48,9 +48,18 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
   </tr>
   <tr>
     <td align="center">
+      <img src="assets/turn-usage-card.png" alt="Per-Turn Inline Usage Summary Card Below Every AI Response" width="100%" />
+      <br />
+      <b>② Per-Turn Inline Usage Summary Card Below Every Response</b>
+      <br />
+      <sub>Automatically mounted at the bottom of each completed turn: breaks down <code>[Main]</code> / <code>[Exec]</code> / <code>[Subagent]</code> / <code>[Compact]</code> model calls & token shares, exact quota pool deductions (e.g., <code>G5h -6.7% | A周 -13.1%</code>), and net context delta (e.g., <code>-31.2%</code> after auto-compaction)</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
       <img src="assets/composer-live-sessions.png" alt="Live Running Session Popover Linked with Composer Bar" width="100%" />
       <br />
-      <b>② Live Running-Sessions HUD Above the Composer Bar</b>
+      <b>③ Live Running-Sessions HUD Above the Composer Bar</b>
       <br />
       <sub>Hovering/clicking the left active badge opens live generation throughput (<code>18.9 t/s</code>), phase, and elapsed time directly above the composer without obscuring the 6 quota slots</sub>
     </td>
@@ -59,7 +68,7 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
     <td align="center">
       <img src="assets/composer-hover-gradient.jpg" alt="Hover Quota Card Aligned with Official Usage Order and Gradient Rings" width="82%" />
       <br />
-      <b>③ Hover Overview Card · Official Ordering, Remaining Bars & Synced Gradient</b>
+      <b>④ Hover Overview Card · Official Ordering, Remaining Bars & Synced Gradient</b>
       <br />
       <sub>Matches Official Usage ordering (Gemini Weekly/5h → Claude & GPT Weekly/5h → Argon Weekly) with remaining-based bar lengths and 1:1 synced blue→amber→red colors across bars and composer rings</sub>
     </td>
@@ -111,10 +120,26 @@ To make remaining headroom readable in peripheral vision at a glance:
 
 - **Independent Context Ring**: The 6th context-usage ring (`○ 67%`) keeps its own semantic styling so context fill is never confused with quota headroom.
 
+### 4. Per-Turn Inline Usage Summary Card in Chat Stream
+
+In long multi-turn conversations, global totals or raw step tables make it difficult to tell which background models ran during a specific prompt and how much quota that single answer consumed. [`TurnUsageCardWidget.js`](sidecars/panel/src/components/widgets/TurnUsageCardWidget.js) injects a compact 3-row summary card directly beneath every completed AI response in the chat stream:
+
+<p align="center">
+  <img src="assets/turn-usage-card.png" alt="Per-Turn Inline Usage Summary Card" width="96%" />
+</p>
+
+- **Row 1 · Turn Identity & Total Duration**: Displays the exact turn index, completion timestamp (`#第30轮 · 完成于 01:12`), total model/tool steps, and cumulative wall-clock duration (`共 38 步 · 总耗时 17m 24s`).
+- **Row 2 · Role-Tagged Model & Quota-Pool Breakdown**: Groups all calls in the turn by role badge (`[主控]` Main / `[执行]` Exec / `[子代理]` Subagent / `[压缩]` Compact) and quota pool (`[Argon池]` / `[Gemini池]` / `[Claude池]` / `[Carbon池]`), showing call counts, token throughput, and percentage share within the turn.
+- **Row 3 · Per-Turn Quota Deduction & Net Context Delta**:
+  - **Quota Deduction**: Computes the percentage drop across every quota pool touched by the turn (including `Gemini 4 Argon`'s dual-pool deduction across shared `G5h` and dedicated `A周`, e.g., `G5h -6.7% | A周 -13.1%`), complementing the live remaining percentages in the bottom composer bar.
+  - **Context Net Delta**: Shows how much the main context window grew or shrank during the turn (e.g., `+4.8%` on normal turns, or `-31.2%` when an auto-compaction step frees context capacity).
+- **Virtual-Scroll (`trajectorySlice`) Alignment & Streaming Suppression**: Matches DOM `[data-testid="agent-response"]` nodes against backend `recentSteps` via React Fiber `container.steps[].metadata.createdAt` timestamps so virtualized long chats always display their true turn number, and suppresses mounting while a turn is actively streaming.
+
 ### Full Diff Summary vs. Upstream
 
 | Area | Upstream (`yuhuan-dev/antigravity-usage-monitor`) | This Edition (`tiantutu798-bit/Gemini`) |
 | :--- | :--- | :--- |
+| **Per-Turn Inline Summary** | None (requires opening popover step table; no per-turn quota drop calculation) | **3-row inline card below every completed response**: role/pool model breakdown, **per-turn quota drop (`G5h / G周 / A周 / C5h / C周`)**, and **net context delta** |
 | **Composer Slots** | Up to 5 slots, no `argon_weekly`, fixed `52px` width clipping | **6 slots**, adds `argon_weekly`, SVG progress rings on all 5 quotas, no truncation |
 | **Quota Card Order** | `Gemini → Argon → Claude & GPT`; `5h` above `Weekly` | **Matches Official Usage**: `Gemini → Claude & GPT → Argon`; **`Weekly` above `5h`** |
 | **Bars & Meta Text** | Bar fills by `used %`, text shows both used and remaining | Bar fills by **`remaining %`**, text shows **remaining only** |

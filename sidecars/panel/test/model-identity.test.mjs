@@ -283,6 +283,16 @@ test('Orchestrator (Argon) resolves to orch-argon, annotates upstream ID, and is
   assert.equal(p.modelBreakdown[0].upstreamName, 'gemini-pro-orchestrator-argon (argon-4)');
   assert.equal(h.isArgonModelIdentifier(ORCH_ARGON, 'gemini-pro-orchestrator-argon', 'Orchestrator (Argon)'), true);
   assert.equal(h.isCarbonModelIdentifier(ORCH_ARGON, 'gemini-pro-orchestrator-argon', 'Orchestrator (Argon)'), false);
+  assert.equal(h.isNeonModelIdentifier('MODEL_PLACEHOLDER_M537', 'gemini-pro-orchestrator-neon', 'Orchestrator (Neon)'), true);
+  assert.equal(h.isCarbonModelIdentifier('MODEL_PLACEHOLDER_M537', 'gemini-pro-orchestrator-neon', 'Orchestrator (Neon)'), false);
+  assert.equal(h.isCarbonModelIdentifier('', 'gemini-pro-orchestrator-g1-pro', ''), false);
+  assert.equal(
+    h.formatUpstreamModelId('gemini-pro-orchestrator-neon', {
+      rawModel: 'MODEL_PLACEHOLDER_M537',
+      modelId: 'gemini-pro-orchestrator-neon',
+    }),
+    'gemini-pro-orchestrator-neon (neon-4)'
+  );
 });
 
 test('real-world M669 worker steps (responseModel gemini-flash-worker-agy, displayName Gemini Flash) and uncatalogued executionModel resolve to Hydrogen', async () => {
@@ -469,6 +479,23 @@ test('orchestratorIdMode defaults to compact, persists via settings action, and 
       'gemini-flash-worker-agy (hydrogen-4)·压缩'
     );
   }
+
+  const orchNeon = {
+    modelKey: 'MODEL_PLACEHOLDER_M537',
+    responseModel: 'gemini-pro-orchestrator-neon',
+  };
+  assert.equal(
+    resolveModelDisplayInfo(orchNeon, { orchestratorIdMode: 'compact' }).text,
+    'orchestrator-neon'
+  );
+  assert.equal(
+    resolveModelDisplayInfo(orchNeon, { orchestratorIdMode: 'full' }).text,
+    'gemini-pro-orchestrator-neon (neon-4)'
+  );
+  assert.equal(
+    resolveModelDisplayInfo({ responseModel: 'gemini-pro-orchestrator-g1-pro' }, { orchestratorIdMode: 'compact' }).text,
+    'orchestrator-g1-pro'
+  );
 
   // Non-Orchestrator direct Hydrogen still follows showUpstreamModel regardless of orchestratorIdMode
   assert.equal(

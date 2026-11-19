@@ -165,6 +165,7 @@
   "placeholders": {
     "MODEL_PLACEHOLDER_M667": { "modelId": "gemini-pro-orchestrator", "label": "Orchestrator (Carbon)" },
     "MODEL_PLACEHOLDER_M681": { "modelId": "gemini-pro-orchestrator-argon", "label": "Orchestrator (Argon)" },
+    "MODEL_PLACEHOLDER_M537": { "modelId": "gemini-pro-orchestrator-neon", "label": "Orchestrator (Neon)" },
     "MODEL_PLACEHOLDER_M669": { "modelId": "gemini-flash-worker-agy", "label": "Orchestrator Worker (Hydrogen)" },
     "MODEL_PLACEHOLDER_M429": { "modelId": "gemini-4-carbon-high", "label": "Gemini 4 Carbon (High)" },
     "MODEL_PLACEHOLDER_M427": { "modelId": "gemini-4-carbon-high", "label": "Gemini 4 Carbon (High)" },

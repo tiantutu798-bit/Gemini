@@ -470,16 +470,18 @@
 .progress-fill {
   height: 100%;
   width: var(--fill-w, 0%);
-  background: var(--accent-primary);
-  transition: width var(--dur-normal) var(--ease-fast);
+  background: var(--fill-bg, var(--accent-primary));
+  transition:
+    width var(--dur-normal) var(--ease-fast),
+    background var(--dur-fast) var(--ease-fast);
 }
 
 .progress-fill.tone-warn {
-  background: var(--metric-warn);
+  background: var(--fill-bg, var(--metric-warn));
 }
 
 .progress-fill.tone-danger {
-  background: var(--metric-danger);
+  background: var(--fill-bg, var(--metric-danger));
 }
 
 /* --- 4. 上下文双列图例网格 (Context 10-Channel Legend Grid) --- */

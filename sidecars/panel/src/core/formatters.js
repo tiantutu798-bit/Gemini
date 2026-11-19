@@ -256,7 +256,7 @@ export function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     );
   const isOrchSeries =
     isOrchWorker ||
-    /\bgemini-pro-orchestrator(?:-argon)?\b|\borchestrator-(?:carbon|argon)\b|\borch-(?:carbon|argon)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon)\)|\bMODEL_PLACEHOLDER_M(?:667|681)\b/i.test(
+    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
       combined
     );
 
@@ -269,6 +269,12 @@ export function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     } else if (/\bargon\b|\bMODEL_PLACEHOLDER_M681\b|\borch-argon\b/i.test(combined)) {
       compactId = 'orchestrator-argon';
       fullId = 'gemini-pro-orchestrator-argon (argon-4)';
+    } else if (/\bneon\b|\bMODEL_PLACEHOLDER_M537\b|\borch-neon\b/i.test(combined)) {
+      compactId = 'orchestrator-neon';
+      fullId = 'gemini-pro-orchestrator-neon (neon-4)';
+    } else if (/\bg1-pro\b|\borch-g1-pro\b/i.test(combined)) {
+      compactId = 'orchestrator-g1-pro';
+      fullId = 'gemini-pro-orchestrator-g1-pro';
     }
     const baseText = orchestratorMode === 'full' ? fullId : compactId;
     const text = `${baseText}${compactionSuffix}`;
@@ -609,4 +615,67 @@ export function formatLiveActivityDetail(act) {
     return t('live.act.compactionResuming');
   }
   return String(act.detail || '');
+}
+
+const QUOTA_REMAINING_COLOR_STOPS = [
+  { pct: 0, r: 239, g: 68, b: 68 },    // #ef4444
+  { pct: 25, r: 249, g: 115, b: 22 },  // #f97316
+  { pct: 50, r: 245, g: 158, b: 11 },  // #f59e0b
+  { pct: 75, r: 78, g: 143, b: 247 },  // #4e8ff7
+  { pct: 100, r: 59, g: 130, b: 246 }, // #3b82f6
+];
+
+function toHexChannel(val) {
+  return Math.max(0, Math.min(255, Math.round(val))).toString(16).padStart(2, '0');
+}
+
+function rgbToHex(r, g, b) {
+  return `#${toHexChannel(r)}${toHexChannel(g)}${toHexChannel(b)}`;
+}
+
+function interpolateQuotaRemainingRgb(remainingPct) {
+  if (remainingPct == null || !Number.isFinite(Number(remainingPct))) {
+    return null;
+  }
+  const p = Math.max(0, Math.min(100, Number(remainingPct)));
+  for (let i = 0; i < QUOTA_REMAINING_COLOR_STOPS.length - 1; i += 1) {
+    const low = QUOTA_REMAINING_COLOR_STOPS[i];
+    const high = QUOTA_REMAINING_COLOR_STOPS[i + 1];
+    if (p <= high.pct) {
+      const span = high.pct - low.pct;
+      const tRatio = span > 0 ? (p - low.pct) / span : 0;
+      return {
+        r: Math.round(low.r + (high.r - low.r) * tRatio),
+        g: Math.round(low.g + (high.g - low.g) * tRatio),
+        b: Math.round(low.b + (high.b - low.b) * tRatio),
+      };
+    }
+  }
+  const last = QUOTA_REMAINING_COLOR_STOPS[QUOTA_REMAINING_COLOR_STOPS.length - 1];
+  return { r: last.r, g: last.g, b: last.b };
+}
+
+/**
+ * Compute continuous remaining-quota semantic color (100% pure blue -> amber/orange -> 0% red).
+ *
+ * @param {number|null|undefined} remainingPct
+ * @returns {string}
+ */
+export function resolveQuotaRemainingColor(remainingPct) {
+  const rgb = interpolateQuotaRemainingRgb(remainingPct);
+  return rgb ? rgbToHex(rgb.r, rgb.g, rgb.b) : '';
+}
+
+/**
+ * Compute continuous remaining-quota progress bar horizontal gradient (deeper start -> bright end).
+ *
+ * @param {number|null|undefined} remainingPct
+ * @returns {string}
+ */
+export function resolveQuotaRemainingBarGradient(remainingPct) {
+  const rgb = interpolateQuotaRemainingRgb(remainingPct);
+  if (!rgb) return '';
+  const mainHex = rgbToHex(rgb.r, rgb.g, rgb.b);
+  const darkHex = rgbToHex(rgb.r * 0.86, rgb.g * 0.86, rgb.b * 0.86);
+  return `linear-gradient(90deg, ${darkHex}, ${mainHex})`;
 }

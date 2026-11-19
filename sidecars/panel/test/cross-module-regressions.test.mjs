@@ -1149,6 +1149,18 @@ test('P1 audit fixes: shared third-party pool & route single-source, pure frozen
     h.formatCliStatusLineCapsule({ quotas: quotasFixture }, { slots: ['claude_5h'], terminalWidth: 120 }),
     /37%/
   );
+  const taggedQuotasFixture = {
+    pools: [
+      { poolKey: 'Gemini', poolLabel: 'Gemini', family: 'Gemini', remainingPct: 83, weeklyRemainingPct: 93 },
+      { poolKey: 'Claude & GPT', poolLabel: 'Claude & GPT', family: 'Claude & GPT', remainingPct: 100, weeklyRemainingPct: 49 },
+      { poolKey: 'Argon', poolLabel: 'Gemini 4 Argon', family: 'Gemini', remainingPct: null, weeklyRemainingPct: 90 },
+    ],
+  };
+  assert.equal(resolveSpecificQuotaSlotSummary(taggedQuotasFixture, 'gemini_weekly')?.shortText, 'G周 93%');
+  assert.equal(resolveSpecificQuotaSlotSummary(taggedQuotasFixture, 'gemini_5h')?.shortText, 'G5h 83%');
+  assert.equal(resolveSpecificQuotaSlotSummary(taggedQuotasFixture, 'claude_weekly')?.shortText, 'C周 49%');
+  assert.equal(resolveSpecificQuotaSlotSummary(taggedQuotasFixture, 'claude_5h')?.shortText, 'C5h 100%');
+  assert.equal(resolveSpecificQuotaSlotSummary(taggedQuotasFixture, 'argon_weekly')?.shortText, 'A周 90%');
 
   // 2. Pure resolveScopedConversation never mutates deeply frozen telemetry
   const deepFreeze = (obj) => {

@@ -16,6 +16,7 @@ import {
   getStepCostToneClass,
   getTtftToneClass,
   resolveModelDisplayInfo,
+  resolveQuotaRemainingColor,
   sampleSummary,
   speedReasonText,
 } from '../core/formatters.js';
@@ -109,19 +110,34 @@ export function resolveQuotaCapsuleSummary(quotas) {
   };
 }
 
+const TAGGED_QUOTA_SLOT_KEYS = new Set([
+  'gemini_weekly',
+  'gemini_5h',
+  'claude_weekly',
+  'claude_5h',
+  'argon_weekly',
+]);
+
 /**
- * 解析指定模型池（Gemini 或 Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
+ * 解析指定模型池（Gemini / Argon / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
  *
  * @param {object|null|undefined} quotas
- * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'} slotKey
+ * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'|'argon_weekly'} slotKey
  * @returns {{ roundedPct: number, shortText: string } | null}
  */
 export function resolveSpecificQuotaSlotSummary(quotas, slotKey) {
   const rounded = resolveCapsuleQuotaSlotPct(quotas, slotKey);
   if (rounded == null) return null;
+  const tagText = TAGGED_QUOTA_SLOT_KEYS.has(slotKey)
+    ? t(`capsule.quotaLabel.${slotKey}`)
+    : '';
   return {
     roundedPct: rounded,
-    shortText: t('capsule.quotaLeft', { pct: rounded }),
+    tagText,
+    pctText: `${rounded}%`,
+    shortText: tagText
+      ? t(`capsule.quotaTag.${slotKey}`, { pct: rounded })
+      : t('capsule.quotaLeft', { pct: rounded }),
   };
 }
 
@@ -331,11 +347,33 @@ export function resolveCapsuleMetricPresentation(metricKey, slotCtx, ringCircumf
   const isDanger = Boolean(quotaSum && quotaSum.roundedPct <= 15);
   const isWarn = Boolean(quotaSum && !isDanger && quotaSum.roundedPct <= 30);
   const toneClass = isDanger ? 'tone-danger' : isWarn ? 'tone-warn' : '';
+  if (TAGGED_QUOTA_SLOT_KEYS.has(metricKey)) {
+    const pctNum = quotaSum ? Math.max(0, Math.min(100, quotaSum.roundedPct)) : 0;
+    const dashOffset = quotaSum
+      ? +(ringCircumference * (1 - pctNum / 100)).toFixed(2)
+      : ringCircumference;
+    return {
+      hidden: false,
+      metric: metricKey,
+      segClass: 'wm-cap-slot wm-seg-quota wm-seg-quota-ring',
+      textClass: 'wm-slot-text wm-quota-pct',
+      tagText: t(`capsule.quotaLabel.${metricKey}`),
+      showRing: true,
+      dashOffset,
+      ringColor: quotaSum ? resolveQuotaRemainingColor(pctNum) : '',
+      text: quotaSum ? quotaSum.pctText : '--%',
+      toneClass,
+      running: false,
+      warn: isWarn,
+      danger: isDanger,
+    };
+  }
   return {
     hidden: false,
     metric: metricKey,
     segClass: 'wm-cap-slot wm-seg-quota',
     textClass: 'wm-slot-text wm-quota-text',
+    tagText: '',
     showRing: false,
     dashOffset: ringCircumference,
     text: quotaSum ? quotaSum.shortText : t('capsule.quotaUnknown'),

@@ -30,11 +30,12 @@ export const TOPBAR_SLOT_KEYS = Object.freeze([
   'gemini_weekly',
   'claude_5h',
   'claude_weekly',
+  'argon_weekly',
 ]);
 
 export const DEFAULT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
 export const MIN_TOPBAR_SLOTS = 1;
-export const MAX_TOPBAR_SLOTS = 5;
+export const MAX_TOPBAR_SLOTS = 6;
 
 export const OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',

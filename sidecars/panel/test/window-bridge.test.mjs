@@ -21,15 +21,23 @@ import {
   resolveIdeArgvPath,
 } from '../backend/window-bridge.mjs';
 import {
+  buildDarwinTerminalRelaunchScript,
   buildSanitizedDesktopRelaunchEnv,
   buildWindowsRelaunchInnerScript,
+  ensureDarwinTerminalRelaunchScript,
   ensureDesktopLaunchEntriesConfigured,
   ensureRemoteDebugFlagInArgs,
+  inspectRunningDarwinDesktopHost,
+  maybeAutoRelaunchDarwinDesktopHost,
+  parsePsElapsedSeconds,
   patchLinuxDesktopEntryText,
   patchWindowsRunRegistryCommand,
   resolveDesktopHostExecutable,
+  triggerDarwinTerminalRelaunch,
   triggerDesktopHostRelaunch,
 } from '../backend/desktop-launcher-config.mjs';
+import { loadSettings } from '../backend/config.mjs';
+import { normalizeFullSettings } from '../backend/settings-schema.mjs';
 import {
   discoverAntigravityLsEndpoint,
   parseLinuxProcNetTcpPorts,
@@ -1299,13 +1307,13 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(hoverQuotaPools.children[0].children.length, 2, 'Zero extra vertical rows in pool item');
     const geminiHoverTitles = hoverQuotaPools.children[0].querySelectorAll('.quota-win-title');
     const geminiHoverUsages = hoverQuotaPools.children[0].querySelectorAll('.quota-win-usage');
-    assert.equal(geminiHoverTitles[0].textContent, '5h (Gemini)');
-    assert.equal(geminiHoverUsages[0].textContent, '· 3.1M ($0.92)');
-    assert.equal(geminiHoverTitles[1].textContent, '周限 (Gemini)');
-    assert.equal(geminiHoverUsages[1].textContent, '· 18.2M ($5.40)');
+    assert.equal(geminiHoverTitles[0].textContent, '周限 (Gemini)');
+    assert.equal(geminiHoverUsages[0].textContent, '· 18.2M ($5.40)');
+    assert.equal(geminiHoverTitles[1].textContent, '5h (Gemini)');
+    assert.equal(geminiHoverUsages[1].textContent, '· 3.1M ($0.92)');
     const claudeHoverUsages = hoverQuotaPools.children[1].querySelectorAll('.quota-win-usage');
-    assert.equal(claudeHoverUsages[0].textContent, '· 0 ($0.00)');
-    assert.equal(claudeHoverUsages[1].textContent, '· 7.3M ($3.82)');
+    assert.equal(claudeHoverUsages[0].textContent, '· 7.3M ($3.82)');
+    assert.equal(claudeHoverUsages[1].textContent, '· 0 ($0.00)');
     const hoverFootSpans = hoverTipEl.querySelector('.wm-hover-quota-foot').children;
     assert.equal(hoverFootSpans[0].textContent, '周期累计: 25.5M ($9.22)');
     assert.equal(hoverFootSpans[1].textContent, '周期调用: 160 次');
@@ -1324,9 +1332,9 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     const popoverEl = portalHost.shadowRoot.querySelector('.wm-popover-panel');
     assert.equal(popoverEl.hasAttribute('hidden'), false);
     const overviewUsageSpans = popoverEl.querySelectorAll('.quota-win-usage');
-    assert.equal(overviewUsageSpans.length, 4, 'LiveOverviewView renders inline 5h and weekly cycle stats for both pools');
-    assert.equal(overviewUsageSpans[0].textContent, '· 3.1M ($0.92)');
-    assert.equal(overviewUsageSpans[1].textContent, '· 18.2M ($5.40)');
+    assert.equal(overviewUsageSpans.length, 4, 'LiveOverviewView renders inline weekly and 5h cycle stats for both pools');
+    assert.equal(overviewUsageSpans[0].textContent, '· 18.2M ($5.40)');
+    assert.equal(overviewUsageSpans[1].textContent, '· 3.1M ($0.92)');
 
     // Verify Shadow DOM retargeted click inside CustomSelect does NOT close select or popover
     const selectRoot = portalHost.shadowRoot.querySelector('.custom-select');
@@ -1516,7 +1524,7 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     const previewMultiBtn = sec0.querySelector('.wm-multi-btn');
     assert.ok(previewCapsuleBar, 'Pane 0 mounts real CapsuleBarWidget preview');
     assert.equal(previewCapsuleBar.querySelector('.preview-win-controls'), null, 'No redundant 3 window dots after capsule');
-    assert.equal(previewCapsuleSlots.length, 5, 'Preview CapsuleBarWidget mounts real 5 capsule slots');
+    assert.equal(previewCapsuleSlots.length, 6, 'Preview CapsuleBarWidget mounts real 6 capsule slots');
     assert.equal(previewCapsuleSlots[0].children[0].textContent, '68.4 t/s', 'Preview slot 0 renders simulated speed');
     assert.equal(previewCapsuleSlots[0].classList.contains('tone-good'), true, 'Preview capsule 68.4 t/s shares tone-good green with cards');
     assert.equal(previewCapsuleSlots[1].children[0].textContent, '1.1s', 'Preview slot 1 renders simulated TTFT');
@@ -1594,13 +1602,14 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(mockSettings.enableCliStatusLine, true, 'CLI bottom capsule toggle restores enableCliStatusLine');
 
-    // Dynamic 1..5 capsule slots via EditableSlotList (+ / - / ↑ / ↓ & mouse drag-and-drop)
+    // Dynamic 1..6 capsule slots via EditableSlotList (+ / - / ↑ / ↓ & mouse drag-and-drop)
     const capSlots = capsuleHost.shadowRoot.querySelectorAll('.wm-cap-slot');
     const capSeps = capsuleHost.shadowRoot.querySelectorAll('.wm-sep');
-    assert.equal(capSlots.length, 5, '5 capsule slot nodes pre-reserved');
-    assert.equal(capSeps.length, 4, '4 capsule separators pre-reserved');
+    assert.equal(capSlots.length, 6, '6 capsule slot nodes pre-reserved');
+    assert.equal(capSeps.length, 5, '5 capsule separators pre-reserved');
     assert.equal(capSlots[3].hasAttribute('hidden'), true, 'Slot 4 hidden by default (3 slots)');
     assert.equal(capSlots[4].hasAttribute('hidden'), true, 'Slot 5 hidden by default (3 slots)');
+    assert.equal(capSlots[5].hasAttribute('hidden'), true, 'Slot 6 hidden by default (3 slots)');
 
     const capSlotWrap = sec0.querySelector('.editable-slot-wrap');
     let capRowSelects = capSlotWrap.querySelectorAll('.custom-select');
@@ -1611,9 +1620,16 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     capRowSelects[0].querySelectorAll('.select-option')[9].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(capSlots[0].getAttribute('data-metric'), 'gemini_5h');
-    assert.equal(capSlots[0].children[0].textContent, '余 44%');
+    assert.equal(capSlots[0].querySelector('.wm-slot-tag').textContent, 'G5h');
+    assert.ok(capSlots[0].querySelector('.wm-ring-svg'), 'Tagged quota slot mounts circular ring');
+    assert.equal(capSlots[0].querySelector('.wm-quota-pct').textContent, '44%');
+    assert.ok(
+      capSlots[0].querySelector('.wm-ring-fill').style.getPropertyValue('--ring-color'),
+      'Quota ring receives synced Scheme B remaining gradient color'
+    );
     assert.equal(previewCapsuleSlots[0].getAttribute('data-metric'), 'gemini_5h', 'Preview slot 0 mirrors gemini_5h');
-    assert.equal(previewCapsuleSlots[0].children[0].textContent, '余 64%', 'Preview slot 0 renders simulated gemini_5h');
+    assert.equal(previewCapsuleSlots[0].querySelector('.wm-slot-tag').textContent, 'G5h', 'Preview slot 0 renders G5h tag');
+    assert.equal(previewCapsuleSlots[0].querySelector('.wm-quota-pct').textContent, '64%', 'Preview slot 0 renders simulated gemini_5h');
     assert.equal(capSlots[1].getAttribute('data-metric'), 'ttft');
     assert.equal(capSlots[1].children[0].textContent, '0.85s');
 
@@ -1629,8 +1645,10 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     capSlotWrap.querySelectorAll('.slot-move-btn')[3].dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
     assert.deepEqual(mockSettings.topbarCapsuleSlots, ['ttft', 'gemini_5h', 'cost']);
+    assert.equal(capSlots[0].children.length, 1, 'Tag & ring detached cleanly when slot leaves quota');
     assert.equal(capSlots[0].children[0].textContent, '0.85s');
-    assert.equal(capSlots[1].children[0].textContent, '余 44%');
+    assert.equal(capSlots[1].querySelector('.wm-slot-tag').textContent, 'G5h');
+    assert.equal(capSlots[1].querySelector('.wm-quota-pct').textContent, '44%');
 
     // Mouse drag-and-drop reorder: drag Row 0 ('ttft') down below Row 2 ('cost') -> ['gemini_5h', 'cost', 'ttft']
     const capSlotListEl = capSlotWrap.querySelector('.editable-slot-list');
@@ -1672,20 +1690,24 @@ test('Compiled app.js mounts dual Shadow DOM hosts, tracks /c/<uuid> routes, pro
     assert.equal(capSlots[1].getAttribute('data-metric'), 'cost');
     assert.equal(capSlots[2].getAttribute('data-metric'), 'ttft');
 
-    // Click `+ 添加指标` twice to expand from 3 -> 5 slots
+    // Click `+ 添加指标` three times to expand from 3 -> 6 slots
     const capAddBtn = capSlotWrap.querySelector('.slot-add-btn');
     capAddBtn.dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
     capAddBtn.dispatchEvent({ type: 'click', stopPropagation() {} });
     await new Promise((r) => setTimeout(r, 30));
-    assert.equal(mockSettings.topbarCapsuleSlots.length, 5, 'Expanded to maximum 5 capsule slots');
-    assert.equal(capAddBtn.hasAttribute('disabled'), true, '+ button disabled at max 5 slots');
+    capAddBtn.dispatchEvent({ type: 'click', stopPropagation() {} });
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(mockSettings.topbarCapsuleSlots.length, 6, 'Expanded to maximum 6 capsule slots');
+    assert.equal(capAddBtn.hasAttribute('disabled'), true, '+ button disabled at max 6 slots');
     assert.equal(capSlots[3].hasAttribute('hidden'), false, 'Slot 4 now visible');
     assert.equal(capSlots[4].hasAttribute('hidden'), false, 'Slot 5 now visible');
+    assert.equal(capSlots[5].hasAttribute('hidden'), false, 'Slot 6 now visible');
     assert.equal(capSeps[3].hasAttribute('hidden'), false, 'Separator 4 now visible');
+    assert.equal(capSeps[4].hasAttribute('hidden'), false, 'Separator 5 now visible');
 
     // Remove down to 1 slot using `-` button, verifying min=1 protection
-    for (let r = 0; r < 4; r += 1) {
+    for (let r = 0; r < 5; r += 1) {
       const remBtns = capSlotWrap.querySelectorAll('.slot-remove-btn');
       remBtns[remBtns.length - 1].dispatchEvent({ type: 'click', stopPropagation() {} });
       await new Promise((r) => setTimeout(r, 25));
@@ -5373,5 +5395,396 @@ test('Issue #26: Antigravity Desktop 2.33.0+ automatic shortcut/launcher provisi
       value: prevNav,
       configurable: true,
     });
+  }
+});
+
+test('macOS cold-start autoRelaunchDebug triggers once with --remote-debugging-port=0 and respects all safety guardrails', async () => {
+  // 1. parsePsElapsedSeconds parses MM:SS, HH:MM:SS, DD-HH:MM:SS and rejects malformed inputs
+  assert.equal(parsePsElapsedSeconds('00:05'), 5);
+  assert.equal(parsePsElapsedSeconds('02:15'), 135);
+  assert.equal(parsePsElapsedSeconds('01:02:03'), 3723);
+  assert.equal(parsePsElapsedSeconds('1-00:00:10'), 86410);
+  assert.equal(parsePsElapsedSeconds('bad'), null);
+  assert.equal(parsePsElapsedSeconds(''), null);
+
+  // 2. normalizeFullSettings defaults autoRelaunchDebug to false and preserves explicit true
+  assert.equal(normalizeFullSettings({}).autoRelaunchDebug, false);
+  assert.equal(normalizeFullSettings({ autoRelaunchDebug: true }).autoRelaunchDebug, true);
+  assert.equal(typeof loadSettings().autoRelaunchDebug, 'boolean');
+
+  // 3. inspectRunningDarwinDesktopHost picks main binary and excludes Helper / IDE
+  const mockPsLines = [
+    '  111  00:02 /Applications/Antigravity.app/Contents/Frameworks/Antigravity Helper.app/Contents/MacOS/Antigravity Helper --type=renderer',
+    '  222  00:03 /Applications/Antigravity IDE.app/Contents/MacOS/Antigravity IDE',
+    '  333  00:04 /Applications/Antigravity.app/Contents/MacOS/Antigravity',
+  ].join('\n');
+  const parsedHost = await inspectRunningDarwinDesktopHost({
+    execFileFn: async () => mockPsLines,
+  });
+  assert.deepEqual(parsedHost, {
+    pid: 333,
+    elapsedSec: 4,
+    hasRemoteDebugFlag: false,
+    command: '/Applications/Antigravity.app/Contents/MacOS/Antigravity',
+  });
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agy-autorelaunch-'));
+  try {
+    const stateFilePath = path.join(tmpDir, 'auto-relaunch-state.json');
+    const leaseFilePath = path.join(tmpDir, 'window-bridge-lease.json');
+    const scriptPath = path.join(tmpDir, 'relaunch-antigravity-debug.command');
+    const ctrlScriptPath = path.join(tmpDir, 'ctrl-relaunch.command');
+    const spawnCalls = [];
+    const existsMock = (p) =>
+      p === '/Applications/Antigravity.app' ||
+      p === '/Applications/Antigravity.app/Contents/MacOS/Antigravity' ||
+      fs.existsSync(p);
+    const mockSpawn = async (file, args, opts) => {
+      spawnCalls.push({ file, args, opts });
+      return { pid: 9999 };
+    };
+
+    // 4. Fresh bare macOS Antigravity (elapsedSec=4, no flag) triggers Terminal relaunch ONCE
+    const res1 = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      stalePortFiles: [path.join(tmpDir, 'DevToolsActivePort')],
+      leaseFilePath,
+      stateFilePath,
+      scriptPath,
+      bridgeUptimeMs: 3000,
+      nowMs: 1_000_000,
+      execFileFn: async () => mockPsLines,
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(res1.triggered, true);
+    assert.equal(res1.reason, 'auto_relaunching');
+    assert.equal(res1.hostPid, 333);
+    assert.equal(res1.scriptPath, scriptPath);
+    assert.equal(res1.result?.viaTerminal, true);
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(spawnCalls[0].file, '/usr/bin/open');
+    assert.deepEqual(spawnCalls[0].args, ['-a', 'Terminal', scriptPath]);
+    assert.equal(fs.existsSync(stateFilePath), true);
+    assert.equal(fs.existsSync(scriptPath), true);
+    assert.notEqual(fs.statSync(scriptPath).mode & 0o111, 0, '.command script must be executable');
+    const scriptText = fs.readFileSync(scriptPath, 'utf8');
+    assert.match(scriptText, /^#!\/bin\/bash\n/);
+    assert.match(scriptText, /--remote-debugging-port=0/);
+    assert.match(scriptText, /DevToolsActivePort/);
+    assert.ok(scriptText.includes(`LEASE_FILE='${leaseFilePath}'`), 'Script embeds target leaseFilePath');
+    assert.match(scriptText, /JSON::PP/);
+    assert.match(scriptText, /check_bridge_mounted\(\)/);
+    assert.match(scriptText, /syncState/);
+    assert.match(scriptText, /aliveCount/);
+    assert.match(scriptText, /运行成功！底部用量与额度栏已成功加载显示！/);
+    assert.match(scriptText, /已确认运行成功，将在 3 秒后自动关闭此终端窗口/);
+    assert.match(scriptText, /POSIX::setsid\(\)/);
+    assert.match(scriptText, /close \(every window whose id is/);
+    assert.match(scriptText, /for n in 3 2 1; do/);
+
+    // Direct helper sanity check (ensureDarwinTerminalRelaunchScript & buildDarwinTerminalRelaunchScript)
+    const directScript = buildDarwinTerminalRelaunchScript({
+      appBundlePath: '/Applications/Antigravity.app',
+      kind: 'desktop',
+      stalePortFiles: [],
+      homeDir: tmpDir,
+      leaseFilePath,
+    });
+    assert.match(directScript, /PORT_FILES=\('.*DevToolsActivePort'\)/);
+    assert.ok(directScript.includes(`LEASE_FILE='${leaseFilePath}'`));
+    const ensured = ensureDarwinTerminalRelaunchScript({
+      scriptPath: path.join(tmpDir, 'direct.command'),
+      homeDir: tmpDir,
+      leaseFilePath,
+    });
+    assert.equal(fs.existsSync(ensured.scriptPath), true);
+    assert.equal(
+      (await triggerDarwinTerminalRelaunch({ platform: 'linux', allowInTest: true })).ok,
+      false
+    );
+
+    // 5. Same PID on second attempt is blocked
+    const resSamePid = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      leaseFilePath,
+      stateFilePath,
+      scriptPath,
+      bridgeUptimeMs: 4000,
+      nowMs: 1_001_000,
+      execFileFn: async () => mockPsLines,
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(resSamePid.triggered, false);
+    assert.equal(resSamePid.reason, 'same_pid_already_relaunched');
+
+    // 6. Different PID within 60s cooldown is blocked by circuit breaker
+    const resCooldown = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      stateFilePath,
+      scriptPath,
+      bridgeUptimeMs: 2000,
+      nowMs: 1_030_000,
+      execFileFn: async () => '  444  00:05 /Applications/Antigravity.app/Contents/MacOS/Antigravity\n',
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(resCooldown.triggered, false);
+    assert.equal(resCooldown.reason, 'cooldown_circuit_breaker');
+
+    // 7. Host running > 45s is never killed mid-conversation
+    const resOldHost = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      stateFilePath: path.join(tmpDir, 'unused.json'),
+      scriptPath: path.join(tmpDir, 'unused.command'),
+      bridgeUptimeMs: 2000,
+      nowMs: 1_200_000,
+      execFileFn: async () => '  555  02:00 /Applications/Antigravity.app/Contents/MacOS/Antigravity\n',
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(resOldHost.triggered, false);
+    assert.equal(resOldHost.reason, 'host_past_startup_window');
+
+    // 8. Host already launched with --remote-debugging-port=0 is skipped
+    const resFlagged = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      stateFilePath: path.join(tmpDir, 'unused.json'),
+      scriptPath: path.join(tmpDir, 'unused.command'),
+      bridgeUptimeMs: 2000,
+      nowMs: 1_200_000,
+      execFileFn: async () => '  666  00:03 /Applications/Antigravity.app/Contents/MacOS/Antigravity --remote-debugging-port=0\n',
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(resFlagged.triggered, false);
+    assert.equal(resFlagged.reason, 'already_has_debug_flag');
+
+    // 9. Bridge uptime past 20s startup window is blocked
+    const resLateBridge = await maybeAutoRelaunchDarwinDesktopHost({
+      env: {},
+      platform: 'darwin',
+      homeDir: tmpDir,
+      stateFilePath: path.join(tmpDir, 'unused.json'),
+      scriptPath: path.join(tmpDir, 'unused.command'),
+      bridgeUptimeMs: 21_000,
+      nowMs: 1_200_000,
+      execFileFn: async () => '  777  00:03 /Applications/Antigravity.app/Contents/MacOS/Antigravity\n',
+      spawnFn: mockSpawn,
+      existsFn: existsMock,
+      allowInTest: true,
+    });
+    assert.equal(resLateBridge.triggered, false);
+    assert.equal(resLateBridge.reason, 'bridge_past_startup_window');
+
+    // 10. Controller integration waits for 2nd no_devtools_port poll before relaunching once via Terminal
+    const ctrlStateFile = path.join(tmpDir, 'ctrl-relaunch-state.json');
+    const ctrlLeaseFile = path.join(tmpDir, 'ctrl-lease.json');
+    const ctrlSpawns = [];
+    let fakeNow = 2_000_000;
+    const ctrl = createWindowBridgeController({
+      handleApiRequest: async () => ({ status: 200, contentType: 'application/json', body: '{}' }),
+      readAssetFn: () => '',
+      getSettingsFn: () => ({ windowMountMode: 'composer', enableWindowOverlay: true, autoRelaunchDebug: true }),
+      env: { USAGE_MONITOR_HOST_EXE: '/Applications/Antigravity.app/Contents/MacOS/Antigravity' },
+      platform: 'darwin',
+      homeDir: tmpDir,
+      leaseFilePath: ctrlLeaseFile,
+      autoRelaunchStateFilePath: ctrlStateFile,
+      autoRelaunchScriptPath: ctrlScriptPath,
+      autoConfigureIdeArgv: false,
+      allowDesktopLauncherInTest: true,
+      existsHostFn: existsMock,
+      launcherExecFileFn: async () => '  888  00:04 /Applications/Antigravity.app/Contents/MacOS/Antigravity\n',
+      relaunchSpawnFn: async (file, args, opts) => {
+        ctrlSpawns.push({ file, args, opts });
+        return { pid: 8888 };
+      },
+      nowFn: () => fakeNow,
+    });
+    const p1 = await ctrl.syncAllWindows();
+    assert.equal(p1.reason, 'no_devtools_port', '1st poll gives freshly launched app grace time');
+    assert.equal(ctrlSpawns.length, 0);
+    fakeNow += 2000;
+    const p2 = await ctrl.syncAllWindows();
+    assert.equal(p2.reason, 'auto_relaunching', '2nd poll within 20s triggers single relaunch');
+    assert.equal(ctrlSpawns.length, 1);
+    assert.equal(ctrlSpawns[0].file, '/usr/bin/open');
+    assert.deepEqual(ctrlSpawns[0].args, ['-a', 'Terminal', ctrlScriptPath]);
+    assert.equal(fs.existsSync(ctrlScriptPath), true);
+    assert.ok(fs.readFileSync(ctrlScriptPath, 'utf8').includes(`LEASE_FILE='${ctrlLeaseFile}'`));
+    fakeNow += 2000;
+    const p3 = await ctrl.syncAllWindows();
+    assert.equal(p3.reason, 'no_devtools_port', '3rd poll does not re-trigger autoRelaunchAttempted');
+    assert.equal(ctrlSpawns.length, 1);
+    assert.equal(spawnCalls.length, 1);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('Quota card ordering aligns with Official Usage, bars/rings use Scheme B remaining gradient, and meta text shows remaining only', async () => {
+  const [
+    { resolveQuotaRemainingColor, resolveQuotaRemainingBarGradient },
+    { buildQuotaPoolItems, createPoolQuotaRow, syncPoolQuotaRow },
+    { createCapsuleSlotNode, syncCapsuleSlotNodes, buildCapsuleSlotContext },
+    { setI18nLanguage },
+  ] = await Promise.all([
+    import('../src/core/formatters.js'),
+    import('../src/components/widgets/QuotaPoolsWidget.js'),
+    import('../src/components/widgets/CapsuleBarWidget.js'),
+    import('../src/i18n/index.js'),
+  ]);
+
+  assert.equal(resolveQuotaRemainingColor(100), '#3b82f6');
+  assert.equal(resolveQuotaRemainingColor(75), '#4e8ff7');
+  assert.equal(resolveQuotaRemainingColor(50), '#f59e0b');
+  assert.equal(resolveQuotaRemainingColor(25), '#f97316');
+  assert.equal(resolveQuotaRemainingColor(0), '#ef4444');
+  assert.equal(resolveQuotaRemainingColor(null), '');
+  assert.match(resolveQuotaRemainingBarGradient(100), /^linear-gradient\(90deg, #[0-9a-f]{6}, #3b82f6\)$/);
+
+  const items = buildQuotaPoolItems({
+    pools: [
+      { poolKey: 'Gemini', poolLabel: 'Gemini', family: 'Gemini', usedPct: 56, remainingPct: 44, weeklyUsedPct: 18, weeklyRemainingPct: 82 },
+      { poolKey: 'Argon', poolLabel: 'Gemini 4 Argon', family: 'Argon', weeklyUsedPct: 10, weeklyRemainingPct: 90 },
+      { poolKey: 'Claude & GPT', poolLabel: 'Claude & GPT', family: 'Claude & GPT', usedPct: 0, remainingPct: 100, weeklyUsedPct: 51, weeklyRemainingPct: 49 },
+    ],
+  });
+  assert.deepEqual(
+    items.map((item) => item.key),
+    ['Gemini', 'Claude & GPT', 'Argon']
+  );
+
+  // Build minimal DOM harness for QuotaPoolsWidget & CapsuleBarWidget
+  const prevDoc = globalThis.document;
+  function makeMockEl(tag) {
+    const attrs = new Map();
+    const styles = new Map();
+    const classes = new Set();
+    const el = {
+      tagName: tag.toUpperCase(),
+      children: [],
+      parentNode: null,
+      textContent: '',
+      hidden: false,
+      style: {
+        setProperty(k, v) {
+          styles.set(k, String(v));
+        },
+        getPropertyValue(k) {
+          return styles.get(k) || '';
+        },
+      },
+      classList: {
+        contains: (c) => classes.has(c),
+        toggle: (c, force) => (force ? classes.add(c) : classes.delete(c)),
+      },
+      setAttribute(k, v) {
+        attrs.set(k, String(v));
+        if (k === 'class') {
+          classes.clear();
+          String(v).split(/\s+/).filter(Boolean).forEach((c) => classes.add(c));
+        }
+      },
+      getAttribute: (k) => attrs.get(k) ?? null,
+      hasAttribute: (k) => attrs.has(k),
+      removeAttribute: (k) => attrs.delete(k),
+      appendChild(c) {
+        if (c && c.parentNode && c.parentNode !== el) c.remove?.();
+        el.children.push(c);
+        if (c && typeof c === 'object') c.parentNode = el;
+        return c;
+      },
+      insertBefore(c, ref) {
+        const idx = el.children.indexOf(ref);
+        if (idx >= 0) el.children.splice(idx, 0, c);
+        else el.children.push(c);
+        if (c && typeof c === 'object') c.parentNode = el;
+        return c;
+      },
+      remove() {
+        if (!el.parentNode) return;
+        const idx = el.parentNode.children.indexOf(el);
+        if (idx >= 0) el.parentNode.children.splice(idx, 1);
+        el.parentNode = null;
+      },
+    };
+    return el;
+  }
+  globalThis.document = {
+    createElement: (tag) => makeMockEl(tag),
+    createElementNS: (_ns, tag) => makeMockEl(tag),
+    createTextNode: (txt) => ({ nodeType: 3, textContent: String(txt) }),
+  };
+
+  try {
+    setI18nLanguage('zh-CN');
+    const row = createPoolQuotaRow();
+    assert.equal(row.el.children[0], row.refs.rowWk, 'Weekly row appears above 5h row');
+    assert.equal(row.el.children[1], row.refs.row5h, '5h row appears below Weekly row');
+
+    syncPoolQuotaRow(row.refs, items[0], 0, row.el);
+    assert.equal(row.refs.fillWk.style.getPropertyValue('--fill-w'), '82%');
+    assert.equal(row.refs.fill5h.style.getPropertyValue('--fill-w'), '44%');
+    assert.equal(
+      row.refs.fillWk.style.getPropertyValue('--fill-bg'),
+      resolveQuotaRemainingBarGradient(82)
+    );
+    assert.equal(
+      row.refs.fill5h.style.getPropertyValue('--fill-bg'),
+      resolveQuotaRemainingBarGradient(44)
+    );
+    assert.ok(row.refs.metaWk.textContent.includes('剩余 82.0%'));
+    assert.equal(row.refs.metaWk.textContent.includes('已用'), false);
+    assert.ok(row.refs.meta5h.textContent.includes('剩余 44.0%'));
+    assert.equal(row.refs.meta5h.textContent.includes('已用'), false);
+
+    setI18nLanguage('en-US');
+    syncPoolQuotaRow(row.refs, items[1], 1, row.el);
+    assert.equal(row.refs.fillWk.style.getPropertyValue('--fill-w'), '49%');
+    assert.equal(row.refs.fill5h.style.getPropertyValue('--fill-w'), '100%');
+    assert.equal(
+      row.refs.fill5h.style.getPropertyValue('--fill-bg'),
+      resolveQuotaRemainingBarGradient(100)
+    );
+    assert.ok(row.refs.metaWk.textContent.includes('49.0% left'));
+    assert.equal(row.refs.metaWk.textContent.includes('Used'), false);
+
+    setI18nLanguage('zh-CN');
+    const slots = [0, 1, 2].map((i) => createCapsuleSlotNode(i, 'none'));
+    const seps = [makeMockEl('span'), makeMockEl('span')];
+    const slotCtx = buildCapsuleSlotContext({
+      activeConversation: { context: { totalTokens: 128000, limitTokens: 256000 } },
+      quotas: {
+        pools: [
+          { poolKey: 'Gemini', family: 'Gemini', remainingPct: 44, weeklyRemainingPct: 82 },
+          { poolKey: 'Claude & GPT', family: 'Claude & GPT', remainingPct: 100, weeklyRemainingPct: 49 },
+        ],
+      },
+    });
+    syncCapsuleSlotNodes(slots, seps, ['gemini_5h', 'claude_5h', 'context'], slotCtx);
+    assert.equal(slots[0].ringFill.style.getPropertyValue('--ring-color'), resolveQuotaRemainingColor(44));
+    assert.equal(slots[1].ringFill.style.getPropertyValue('--ring-color'), '#3b82f6');
+    assert.equal(slots[2].ringFill.style.getPropertyValue('--ring-color'), '', 'Context ring leaves --ring-color unset');
+  } finally {
+    setI18nLanguage('zh-CN');
+    globalThis.document = prevDoc;
   }
 });

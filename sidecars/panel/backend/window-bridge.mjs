@@ -36,7 +36,9 @@ import {
   resolveContextWindowRules,
 } from './context-windows.mjs';
 import {
+  DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME,
   ensureDesktopLaunchEntriesConfigured,
+  maybeAutoRelaunchDarwinDesktopHost,
   resolveDesktopHostExecutable,
 } from './desktop-launcher-config.mjs';
 import { callLsRpc, getContextModelCatalog } from './ls-rpc.mjs';
@@ -713,6 +715,10 @@ export function createWindowBridgeController(options) {
     bootBundleVersion = '',
     onVersionDrift = null,
     leaseFilePath = '',
+    autoRelaunchStateFilePath = '',
+    autoRelaunchScriptPath = '',
+    relaunchSpawnFn = null,
+    nowFn = Date.now,
     autoConfigureIdeArgv = options?.env === undefined && options?.homeDir === undefined,
     launcherExecFileFn = null,
     launcherFsOps = null,
@@ -748,6 +754,9 @@ export function createWindowBridgeController(options) {
   let argvUpdatedThisBoot = false;
   let argvConfigured = false;
   let launcherConfigured = false;
+  const bridgeStartedAtMs = nowFn();
+  let noDevToolsPollCount = 0;
+  let autoRelaunchAttempted = false;
   const hostExecInfo = resolveDesktopHostExecutable({
     env,
     platform,
@@ -1337,6 +1346,7 @@ export function createWindowBridgeController(options) {
 
     const cdpPorts = findActiveDevToolsPorts();
     if (!cdpPorts.length) {
+      noDevToolsPollCount += 1;
       if (provPending) {
         await provPending.catch(() => {});
       }
@@ -1346,8 +1356,42 @@ export function createWindowBridgeController(options) {
         bundleVersion,
         prevLease: currentLease,
       });
+      if (
+        enabled &&
+        leasedBySelf &&
+        canRelaunch &&
+        platform === 'darwin' &&
+        curSettings.autoRelaunchDebug === true &&
+        !autoRelaunchAttempted &&
+        noDevToolsPollCount >= 2
+      ) {
+        const bridgeUptimeMs = Math.max(0, nowFn() - bridgeStartedAtMs);
+        if (bridgeUptimeMs <= 20_000) {
+          autoRelaunchAttempted = true;
+          const candidatePortFiles = resolveDevToolsPortCandidates(env, platform, homeDir);
+          const autoRes = await maybeAutoRelaunchDarwinDesktopHost({
+            env,
+            platform,
+            homeDir,
+            stalePortFiles: candidatePortFiles,
+            leaseFilePath: leaseFilePath || join(DATA_DIR, 'window-bridge-lease.json'),
+            stateFilePath: autoRelaunchStateFilePath || join(DATA_DIR, 'auto-relaunch-state.json'),
+            scriptPath: autoRelaunchScriptPath || join(DATA_DIR, DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME),
+            bridgeUptimeMs,
+            nowMs: nowFn(),
+            execFileFn: launcherExecFileFn,
+            spawnFn: relaunchSpawnFn,
+            existsFn: existsHostFn,
+            allowInTest: allowDesktopLauncherInTest,
+          }).catch(() => ({ triggered: false, reason: 'error' }));
+          if (autoRes?.triggered) {
+            return { ok: false, enabled, reason: 'auto_relaunching', injected: 0 };
+          }
+        }
+      }
       return { ok: false, enabled, reason: 'no_devtools_port', injected: 0 };
     }
+    noDevToolsPollCount = 0;
 
     const { reachableCount, targets } = await collectAllMainWindowTargets(cdpPorts);
     if (reachableCount === 0) {
@@ -1924,6 +1968,7 @@ export function startDefaultWindowBridge(options) {
   if (!defaultBridgeController) {
     defaultBridgeController = createWindowBridgeController({
       leaseFilePath: join(DATA_DIR, 'window-bridge-lease.json'),
+      autoRelaunchStateFilePath: join(DATA_DIR, 'auto-relaunch-state.json'),
       ...options,
     });
     defaultBridgeController.start();

@@ -35,11 +35,12 @@ const TOPBAR_SLOT_KEYS = Object.freeze([
   'gemini_weekly',
   'claude_5h',
   'claude_weekly',
+  'argon_weekly',
 ]);
 
 const DEFAULT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
 const MIN_TOPBAR_SLOTS = 1;
-const MAX_TOPBAR_SLOTS = 5;
+const MAX_TOPBAR_SLOTS = 6;
 
 const OVERVIEW_MODULE_KEYS = Object.freeze([
   'metrics',
@@ -555,7 +556,7 @@ function formatCompactCapsuleTtft(ttftSec) {
 }
 
 /**
- * 解析胶囊指定配额槽位（`quota_auto` / `gemini_5h` / `gemini_weekly` / `claude_5h` / `claude_weekly`）的整数剩余百分比。
+ * 解析胶囊指定配额槽位（`quota_auto` / `gemini_5h` / `gemini_weekly` / `claude_5h` / `claude_weekly` / `argon_weekly`）的整数剩余百分比。
  *
  * @param {object|null|undefined} quotas
  * @param {string} slotKey
@@ -588,6 +589,17 @@ function resolveCapsuleQuotaSlotPct(quotas, slotKey) {
     }
     if (!candidates.length) return null;
     return Math.max(0, Math.min(100, Math.round(Math.min(...candidates))));
+  }
+
+  if (slotKey === 'argon_weekly') {
+    const argonPool =
+      pools.find((p) => p?.poolKey === 'Argon') ||
+      pools.find((p) => /\bargon\b/i.test(String(p?.poolKey || p?.poolLabel || '')));
+    const cand = argonPool?.weeklyRemainingPct ?? argonPool?.remainingPct;
+    if (cand != null && Number.isFinite(Number(cand))) {
+      return Math.max(0, Math.min(100, Math.round(Number(cand))));
+    }
+    return null;
   }
 
   const isClaude = slotKey.startsWith('claude_');
@@ -1098,6 +1110,21 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'capsule.tpsIdle': '待命',
   'capsule.quotaLeft': '余 {pct}%',
   'capsule.quotaUnknown': '余 --%',
+  'capsule.quotaTag.gemini_weekly': 'G周 {pct}%',
+  'capsule.quotaTag.gemini_5h': 'G5h {pct}%',
+  'capsule.quotaTag.claude_weekly': 'C周 {pct}%',
+  'capsule.quotaTag.claude_5h': 'C5h {pct}%',
+  'capsule.quotaTag.argon_weekly': 'A周 {pct}%',
+  'capsule.quotaLabel.gemini_weekly': 'G周',
+  'capsule.quotaLabel.gemini_5h': 'G5h',
+  'capsule.quotaLabel.claude_weekly': 'C周',
+  'capsule.quotaLabel.claude_5h': 'C5h',
+  'capsule.quotaLabel.argon_weekly': 'A周',
+  'capsule.quotaTagUnknown.gemini_weekly': 'G周 --%',
+  'capsule.quotaTagUnknown.gemini_5h': 'G5h --%',
+  'capsule.quotaTagUnknown.claude_weekly': 'C周 --%',
+  'capsule.quotaTagUnknown.claude_5h': 'C5h --%',
+  'capsule.quotaTagUnknown.argon_weekly': 'A周 --%',
   'capsule.newVersion': '新版本',
   'capsule.updating': '更新中…',
   'capsule.ariaUpdateTitle': '发现新版本，点击立即更新',
@@ -1138,6 +1165,7 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'capMetric.gemini_weekly': 'Gemini 周额度',
   'capMetric.claude_5h': 'Claude 5h 额度',
   'capMetric.claude_weekly': 'Claude 周额度',
+  'capMetric.argon_weekly': 'Argon 周额度',
 
   // Overview Matrix Metric Options & Cells
   'ovMetric.tps': '输出速度',
@@ -1192,7 +1220,7 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'quota.weeklyPool': '周限 ({pool})',
   'quota.loading': '读取中...',
   'quota.failed': '获取失败 (--%)',
-  'quota.usedAndLeft': '{reset} · 已用 {used}% (余 {rem}%)',
+  'quota.usedAndLeft': '{reset} · 剩余 {rem}%',
   'quota.cycle5hTitle': '当前 5h 周期累计 ({pool})：{tok} Tokens · {cost} · {calls} 次调用',
   'quota.cycleWkCustomTitle': '本周自然周累计：{tok} Tokens · {cost} · {calls} 次调用',
   'quota.cycleWkPoolTitle': '当前周限周期累计 ({pool})：{tok} Tokens · {cost} · {calls} 次调用',
@@ -1486,7 +1514,7 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'settings.str.hide': '隐藏',
   'settings.str.on': '开启',
   'settings.str.off': '关闭',
-  'settings.str.capsuleSlotsLabel': '胶囊数值与顺序 (左 → 右，1~5 项，可拖拽)',
+  'settings.str.capsuleSlotsLabel': '胶囊数值与顺序 (左 → 右，1~6 项，可拖拽)',
   'settings.str.addCapsuleSlot': '添加槽位 ({count}/{max})',
   'settings.str.hoverSection': '鼠标悬浮窗',
   'settings.str.hoverBadgeOff': '已关闭',
@@ -1728,6 +1756,21 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'capsule.tpsIdle': 'Idle',
   'capsule.quotaLeft': '{pct}% left',
   'capsule.quotaUnknown': '--% left',
+  'capsule.quotaTag.gemini_weekly': 'G7d {pct}%',
+  'capsule.quotaTag.gemini_5h': 'G5h {pct}%',
+  'capsule.quotaTag.claude_weekly': 'C7d {pct}%',
+  'capsule.quotaTag.claude_5h': 'C5h {pct}%',
+  'capsule.quotaTag.argon_weekly': 'A7d {pct}%',
+  'capsule.quotaLabel.gemini_weekly': 'G7d',
+  'capsule.quotaLabel.gemini_5h': 'G5h',
+  'capsule.quotaLabel.claude_weekly': 'C7d',
+  'capsule.quotaLabel.claude_5h': 'C5h',
+  'capsule.quotaLabel.argon_weekly': 'A7d',
+  'capsule.quotaTagUnknown.gemini_weekly': 'G7d --%',
+  'capsule.quotaTagUnknown.gemini_5h': 'G5h --%',
+  'capsule.quotaTagUnknown.claude_weekly': 'C7d --%',
+  'capsule.quotaTagUnknown.claude_5h': 'C5h --%',
+  'capsule.quotaTagUnknown.argon_weekly': 'A7d --%',
   'capsule.newVersion': 'Update',
   'capsule.updating': 'Updating…',
   'capsule.ariaUpdateTitle': 'New version available, click to update',
@@ -1768,6 +1811,7 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'capMetric.gemini_weekly': 'Gemini Weekly Quota',
   'capMetric.claude_5h': 'Claude 5h Quota',
   'capMetric.claude_weekly': 'Claude Weekly Quota',
+  'capMetric.argon_weekly': 'Argon Weekly Quota',
 
   // Overview Matrix Metric Options & Cells
   'ovMetric.tps': 'Output Speed',
@@ -1822,7 +1866,7 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'quota.weeklyPool': 'Weekly ({pool})',
   'quota.loading': 'Loading...',
   'quota.failed': 'Unavailable (--%)',
-  'quota.usedAndLeft': '{reset} · Used {used}% ({rem}% left)',
+  'quota.usedAndLeft': '{reset} · {rem}% left',
   'quota.cycle5hTitle': 'Current 5h cycle ({pool}): {tok} Tokens · {cost} · {calls} calls',
   'quota.cycleWkCustomTitle': 'Current calendar week: {tok} Tokens · {cost} · {calls} calls',
   'quota.cycleWkPoolTitle': 'Current weekly cycle ({pool}): {tok} Tokens · {cost} · {calls} calls',
@@ -2116,7 +2160,7 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'settings.str.hide': 'Hide',
   'settings.str.on': 'On',
   'settings.str.off': 'Off',
-  'settings.str.capsuleSlotsLabel': 'Capsule Metrics & Order (Left → Right, 1–5, draggable)',
+  'settings.str.capsuleSlotsLabel': 'Capsule Metrics & Order (Left → Right, 1–6, draggable)',
   'settings.str.addCapsuleSlot': 'Add Slot ({count}/{max})',
   'settings.str.hoverSection': 'Hover Quick-View',
   'settings.str.hoverBadgeOff': 'Off',
@@ -2732,7 +2776,7 @@ return { defineComponent };
 })();
 
 // --- src/core/formatters.js ---
-const { formatMetric, formatCachePct, getSpeedToneClass, getCacheToneClass, getStepCostToneClass, getTtftToneClass, formatTokens, formatTokensPrecise, formatCnyApprox, formatDateSpanBadge, formatUsd, speedReasonText, sampleSummary, formatCountdown, formatCompactDateTime, formatElapsedSec, stripVendorModelPrefix, normalizeOrchestratorIdDisplayMode, resolveModelDisplayInfo, mergeModelsByDisplayName, getAgentBadgeClass, formatAgentBadgeText, formatAgentLabel, formatLiveActivityLabel, formatLiveActivityDetail } = (() => {
+const { formatMetric, formatCachePct, getSpeedToneClass, getCacheToneClass, getStepCostToneClass, getTtftToneClass, formatTokens, formatTokensPrecise, formatCnyApprox, formatDateSpanBadge, formatUsd, speedReasonText, sampleSummary, formatCountdown, formatCompactDateTime, formatElapsedSec, stripVendorModelPrefix, normalizeOrchestratorIdDisplayMode, resolveModelDisplayInfo, mergeModelsByDisplayName, getAgentBadgeClass, formatAgentBadgeText, formatAgentLabel, formatLiveActivityLabel, formatLiveActivityDetail, resolveQuotaRemainingColor, resolveQuotaRemainingBarGradient } = (() => {
 /**
  * @fileoverview Pure formatting utilities for speed metrics, token counts,
  * USD estimates, countdown timers, and custom datetime displays.
@@ -2978,7 +3022,7 @@ function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     );
   const isOrchSeries =
     isOrchWorker ||
-    /\bgemini-pro-orchestrator(?:-argon)?\b|\borchestrator-(?:carbon|argon)\b|\borch-(?:carbon|argon)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon)\)|\bMODEL_PLACEHOLDER_M(?:667|681)\b/i.test(
+    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
       combined
     );
 
@@ -2991,6 +3035,12 @@ function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     } else if (/\bargon\b|\bMODEL_PLACEHOLDER_M681\b|\borch-argon\b/i.test(combined)) {
       compactId = 'orchestrator-argon';
       fullId = 'gemini-pro-orchestrator-argon (argon-4)';
+    } else if (/\bneon\b|\bMODEL_PLACEHOLDER_M537\b|\borch-neon\b/i.test(combined)) {
+      compactId = 'orchestrator-neon';
+      fullId = 'gemini-pro-orchestrator-neon (neon-4)';
+    } else if (/\bg1-pro\b|\borch-g1-pro\b/i.test(combined)) {
+      compactId = 'orchestrator-g1-pro';
+      fullId = 'gemini-pro-orchestrator-g1-pro';
     }
     const baseText = orchestratorMode === 'full' ? fullId : compactId;
     const text = `${baseText}${compactionSuffix}`;
@@ -3332,7 +3382,70 @@ function formatLiveActivityDetail(act) {
   }
   return String(act.detail || '');
 }
-return { formatMetric, formatCachePct, getSpeedToneClass, getCacheToneClass, getStepCostToneClass, getTtftToneClass, formatTokens, formatTokensPrecise, formatCnyApprox, formatDateSpanBadge, formatUsd, speedReasonText, sampleSummary, formatCountdown, formatCompactDateTime, formatElapsedSec, stripVendorModelPrefix, normalizeOrchestratorIdDisplayMode, resolveModelDisplayInfo, mergeModelsByDisplayName, getAgentBadgeClass, formatAgentBadgeText, formatAgentLabel, formatLiveActivityLabel, formatLiveActivityDetail };
+
+const QUOTA_REMAINING_COLOR_STOPS = [
+  { pct: 0, r: 239, g: 68, b: 68 },    // #ef4444
+  { pct: 25, r: 249, g: 115, b: 22 },  // #f97316
+  { pct: 50, r: 245, g: 158, b: 11 },  // #f59e0b
+  { pct: 75, r: 78, g: 143, b: 247 },  // #4e8ff7
+  { pct: 100, r: 59, g: 130, b: 246 }, // #3b82f6
+];
+
+function toHexChannel(val) {
+  return Math.max(0, Math.min(255, Math.round(val))).toString(16).padStart(2, '0');
+}
+
+function rgbToHex(r, g, b) {
+  return `#${toHexChannel(r)}${toHexChannel(g)}${toHexChannel(b)}`;
+}
+
+function interpolateQuotaRemainingRgb(remainingPct) {
+  if (remainingPct == null || !Number.isFinite(Number(remainingPct))) {
+    return null;
+  }
+  const p = Math.max(0, Math.min(100, Number(remainingPct)));
+  for (let i = 0; i < QUOTA_REMAINING_COLOR_STOPS.length - 1; i += 1) {
+    const low = QUOTA_REMAINING_COLOR_STOPS[i];
+    const high = QUOTA_REMAINING_COLOR_STOPS[i + 1];
+    if (p <= high.pct) {
+      const span = high.pct - low.pct;
+      const tRatio = span > 0 ? (p - low.pct) / span : 0;
+      return {
+        r: Math.round(low.r + (high.r - low.r) * tRatio),
+        g: Math.round(low.g + (high.g - low.g) * tRatio),
+        b: Math.round(low.b + (high.b - low.b) * tRatio),
+      };
+    }
+  }
+  const last = QUOTA_REMAINING_COLOR_STOPS[QUOTA_REMAINING_COLOR_STOPS.length - 1];
+  return { r: last.r, g: last.g, b: last.b };
+}
+
+/**
+ * Compute continuous remaining-quota semantic color (100% pure blue -> amber/orange -> 0% red).
+ *
+ * @param {number|null|undefined} remainingPct
+ * @returns {string}
+ */
+function resolveQuotaRemainingColor(remainingPct) {
+  const rgb = interpolateQuotaRemainingRgb(remainingPct);
+  return rgb ? rgbToHex(rgb.r, rgb.g, rgb.b) : '';
+}
+
+/**
+ * Compute continuous remaining-quota progress bar horizontal gradient (deeper start -> bright end).
+ *
+ * @param {number|null|undefined} remainingPct
+ * @returns {string}
+ */
+function resolveQuotaRemainingBarGradient(remainingPct) {
+  const rgb = interpolateQuotaRemainingRgb(remainingPct);
+  if (!rgb) return '';
+  const mainHex = rgbToHex(rgb.r, rgb.g, rgb.b);
+  const darkHex = rgbToHex(rgb.r * 0.86, rgb.g * 0.86, rgb.b * 0.86);
+  return `linear-gradient(90deg, ${darkHex}, ${mainHex})`;
+}
+return { formatMetric, formatCachePct, getSpeedToneClass, getCacheToneClass, getStepCostToneClass, getTtftToneClass, formatTokens, formatTokensPrecise, formatCnyApprox, formatDateSpanBadge, formatUsd, speedReasonText, sampleSummary, formatCountdown, formatCompactDateTime, formatElapsedSec, stripVendorModelPrefix, normalizeOrchestratorIdDisplayMode, resolveModelDisplayInfo, mergeModelsByDisplayName, getAgentBadgeClass, formatAgentBadgeText, formatAgentLabel, formatLiveActivityLabel, formatLiveActivityDetail, resolveQuotaRemainingColor, resolveQuotaRemainingBarGradient };
 })();
 
 // --- src/core/httpClient.js ---
@@ -9429,19 +9542,34 @@ function resolveQuotaCapsuleSummary(quotas) {
   };
 }
 
+const TAGGED_QUOTA_SLOT_KEYS = new Set([
+  'gemini_weekly',
+  'gemini_5h',
+  'claude_weekly',
+  'claude_5h',
+  'argon_weekly',
+]);
+
 /**
- * 解析指定模型池（Gemini 或 Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
+ * 解析指定模型池（Gemini / Argon / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
  *
  * @param {object|null|undefined} quotas
- * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'} slotKey
+ * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'|'argon_weekly'} slotKey
  * @returns {{ roundedPct: number, shortText: string } | null}
  */
 function resolveSpecificQuotaSlotSummary(quotas, slotKey) {
   const rounded = resolveCapsuleQuotaSlotPct(quotas, slotKey);
   if (rounded == null) return null;
+  const tagText = TAGGED_QUOTA_SLOT_KEYS.has(slotKey)
+    ? t(`capsule.quotaLabel.${slotKey}`)
+    : '';
   return {
     roundedPct: rounded,
-    shortText: t('capsule.quotaLeft', { pct: rounded }),
+    tagText,
+    pctText: `${rounded}%`,
+    shortText: tagText
+      ? t(`capsule.quotaTag.${slotKey}`, { pct: rounded })
+      : t('capsule.quotaLeft', { pct: rounded }),
   };
 }
 
@@ -9651,11 +9779,33 @@ function resolveCapsuleMetricPresentation(metricKey, slotCtx, ringCircumference)
   const isDanger = Boolean(quotaSum && quotaSum.roundedPct <= 15);
   const isWarn = Boolean(quotaSum && !isDanger && quotaSum.roundedPct <= 30);
   const toneClass = isDanger ? 'tone-danger' : isWarn ? 'tone-warn' : '';
+  if (TAGGED_QUOTA_SLOT_KEYS.has(metricKey)) {
+    const pctNum = quotaSum ? Math.max(0, Math.min(100, quotaSum.roundedPct)) : 0;
+    const dashOffset = quotaSum
+      ? +(ringCircumference * (1 - pctNum / 100)).toFixed(2)
+      : ringCircumference;
+    return {
+      hidden: false,
+      metric: metricKey,
+      segClass: 'wm-cap-slot wm-seg-quota wm-seg-quota-ring',
+      textClass: 'wm-slot-text wm-quota-pct',
+      tagText: t(`capsule.quotaLabel.${metricKey}`),
+      showRing: true,
+      dashOffset,
+      ringColor: quotaSum ? resolveQuotaRemainingColor(pctNum) : '',
+      text: quotaSum ? quotaSum.pctText : '--%',
+      toneClass,
+      running: false,
+      warn: isWarn,
+      danger: isDanger,
+    };
+  }
   return {
     hidden: false,
     metric: metricKey,
     segClass: 'wm-cap-slot wm-seg-quota',
     textClass: 'wm-slot-text wm-quota-text',
+    tagText: '',
     showRing: false,
     dashOffset: ringCircumference,
     text: quotaSum ? quotaSum.shortText : t('capsule.quotaUnknown'),
@@ -10493,6 +10643,23 @@ const { buildQuotaPoolItems, createPoolQuotaRow, formatQuotaSummaryFooter, syncP
  */
 
 
+const QUOTA_POOL_DISPLAY_ORDER = {
+  Gemini: 0,
+  'Claude & GPT': 1,
+  Claude: 1,
+  GPT: 1,
+  Argon: 2,
+  Carbon: 3,
+};
+
+function getPoolDisplayRank(pool) {
+  const famRank = QUOTA_POOL_DISPLAY_ORDER[pool?.family];
+  if (famRank !== undefined) return famRank;
+  const keyRank = QUOTA_POOL_DISPLAY_ORDER[pool?.poolKey];
+  if (keyRank !== undefined) return keyRank;
+  return 99;
+}
+
 /**
  * 归一化动态配额池列表；在官方配额尚未返回时回退预占 Gemini 与 Claude & GPT 两个标准池槽位。
  *
@@ -10511,8 +10678,9 @@ function buildQuotaPoolItems(quotas, minuteTick = 0, { isPending = false } = {})
           { poolKey: 'Gemini', poolLabel: 'Gemini', family: 'Gemini' },
           { poolKey: 'Claude & GPT', poolLabel: 'Claude & GPT', family: 'Claude & GPT' },
         ];
+  const orderedPools = [...rawPools].sort((a, b) => getPoolDisplayRank(a) - getPoolDisplayRank(b));
   const weekly = safeQuotas.weekly || {};
-  const poolItems = rawPools.map((p) => {
+  const poolItems = orderedPools.map((p) => {
     const key = p.poolKey || p.family || p.poolLabel || 'Other';
     const poolLabel = p.poolLabel || p.family || key;
     const isActivePool =
@@ -10565,8 +10733,8 @@ function createPoolQuotaRow() {
   ]);
 
   const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, [
-    row5h,
     rowWk,
+    row5h,
   ]);
 
   return {
@@ -10682,10 +10850,16 @@ function syncPoolQuotaRow(refs, item, idx, rowEl) {
         })
       : fallbackMetaText
   );
-  patchStyleVar(refs.fill5h, '--fill-w', `${Math.min(100, used5hVal)}%`);
+  const rem5hClamped = has5h ? Math.max(0, Math.min(100, rem5hVal)) : 0;
+  patchStyleVar(refs.fill5h, '--fill-w', has5h ? `${rem5hClamped}%` : '0%');
+  patchStyleVar(
+    refs.fill5h,
+    '--fill-bg',
+    has5h ? resolveQuotaRemainingBarGradient(rem5hClamped) : ''
+  );
   patchClasses(refs.fill5h, {
-    'tone-warn': used5hVal >= 70 && used5hVal < 85,
-    'tone-danger': used5hVal >= 85,
+    'tone-warn': has5h && rem5hClamped <= 30 && rem5hClamped > 15,
+    'tone-danger': has5h && rem5hClamped <= 15,
   });
 
   const customTitle =
@@ -10729,10 +10903,16 @@ function syncPoolQuotaRow(refs, item, idx, rowEl) {
         })
       : fallbackMetaText
   );
-  patchStyleVar(refs.fillWk, '--fill-w', `${Math.min(100, usedWkVal)}%`);
+  const remWkClamped = hasWk ? Math.max(0, Math.min(100, remWkVal)) : 0;
+  patchStyleVar(refs.fillWk, '--fill-w', hasWk ? `${remWkClamped}%` : '0%');
+  patchStyleVar(
+    refs.fillWk,
+    '--fill-bg',
+    hasWk ? resolveQuotaRemainingBarGradient(remWkClamped) : ''
+  );
   patchClasses(refs.fillWk, {
-    'tone-warn': usedWkVal >= 70 && usedWkVal < 85,
-    'tone-danger': usedWkVal >= 85,
+    'tone-warn': hasWk && remWkClamped <= 30 && remWkClamped > 15,
+    'tone-danger': hasWk && remWkClamped <= 15,
   });
 }
 
@@ -12170,6 +12350,7 @@ function createCapsuleSlotNode(slotIndex, initialMetric) {
   ringSvg.appendChild(ringTrack);
   ringSvg.appendChild(ringFill);
 
+  const tagSpan = h('span', { className: 'wm-slot-tag', text: '' });
   const isNone = initialMetric === 'none';
   const isCtx = initialMetric === 'context';
   const textSpan = h('span', {
@@ -12206,6 +12387,8 @@ function createCapsuleSlotNode(slotIndex, initialMetric) {
 
   return {
     el,
+    tagSpan,
+    tagMounted: false,
     ringSvg,
     ringFill,
     textSpan,
@@ -12214,11 +12397,11 @@ function createCapsuleSlotNode(slotIndex, initialMetric) {
 }
 
 /**
- * Patch 5 pre-allocated capsule slots and 4 separators in-place via `metricRegistry`.
+ * Patch pre-allocated capsule slots and separators in-place via `metricRegistry`.
  */
 function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCtx) {
   let visRank = 0;
-  const visRanks = [0, 0, 0, 0, 0];
+  const visRanks = new Array(capsuleSlots.length).fill(0);
   for (let i = 0; i < capsuleSlots.length; i += 1) {
     const slot = capsuleSlots[i];
     const metricKey = i < slotKeys.length ? slotKeys[i] : 'none';
@@ -12234,6 +12417,18 @@ function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCtx) {
     patchAttr(slot.el, 'hidden', false);
     patchAttr(slot.el, 'data-metric', pres.metric);
     patchAttr(slot.el, 'data-vis-rank', String(visRank));
+
+    const hasTag = Boolean(pres.tagText);
+    if (hasTag) {
+      patchText(slot.tagSpan, pres.tagText);
+      if (!slot.tagMounted) {
+        slot.el.insertBefore(slot.tagSpan, slot.el.firstChild || slot.textSpan);
+        slot.tagMounted = true;
+      }
+    } else if (slot.tagMounted) {
+      slot.tagSpan.remove();
+      slot.tagMounted = false;
+    }
 
     if (pres.showRing && !slot.ringMounted) {
       slot.el.insertBefore(slot.ringSvg, slot.textSpan);
@@ -12253,6 +12448,7 @@ function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCtx) {
 
     if (pres.showRing) {
       slot.ringFill.setAttribute('stroke-dashoffset', String(pres.dashOffset));
+      patchStyleVar(slot.ringFill, '--ring-color', pres.ringColor || '');
       patchClasses(slot.ringFill, { 'tone-warn': pres.warn, 'tone-danger': pres.danger });
     }
   }
@@ -12295,10 +12491,12 @@ const CapsuleBarWidget = defineComponent({
       createCapsuleSlotNode(2, 'context'),
       createCapsuleSlotNode(3, 'none'),
       createCapsuleSlotNode(4, 'none'),
+      createCapsuleSlotNode(5, 'none'),
     ];
     const capsuleSeps = [
       h('span', { className: 'wm-sep wm-sep-speed', 'data-sep-for-rank': '2' }),
       h('span', { className: 'wm-sep wm-sep-quota', 'data-sep-for-rank': '3' }),
+      h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
       h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
       h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     ];
@@ -12321,6 +12519,8 @@ const CapsuleBarWidget = defineComponent({
         capsuleSlots[3].el,
         capsuleSeps[3],
         capsuleSlots[4].el,
+        capsuleSeps[4],
+        capsuleSlots[5].el,
       ]
     );
 
@@ -13282,6 +13482,19 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
           weeklyResetTime: resetWkIso,
           cycle5h: { tokens: 620000, costUsd: 2.15, calls: 11 },
           cycleWeekly: { tokens: 5800000, costUsd: 18.6, calls: 92 },
+        },
+        {
+          poolKey: 'Argon',
+          poolLabel: 'Gemini 4 Argon',
+          family: 'Gemini',
+          usedPct: null,
+          remainingPct: null,
+          resetTime: null,
+          weeklyUsedPct: 10,
+          weeklyRemainingPct: 90,
+          weeklyResetTime: resetWkIso,
+          cycle5h: { tokens: 0, costUsd: 0, calls: 0 },
+          cycleWeekly: { tokens: 1200000, costUsd: 1.8, calls: 15 },
         },
       ],
       weekly: {
@@ -15118,7 +15331,7 @@ const SettingsStructureTab = defineComponent({
       items: draftTopbarSlots,
       options: getCapsuleMetricOptions(),
       minItems: 1,
-      maxItems: 5,
+      maxItems: 6,
       addBtnTextFn: (count, max) => t('settings.str.addCapsuleSlot', { count, max }),
       onPreview: (previewItems) => {
         draftTopbarSlots = normalizeClientTopbarSlots(previewItems);
@@ -20418,17 +20631,19 @@ function mountWindowOverlay() {
     [multiDot, multiLabel]
   );
 
-  // 构建可复用的预占胶囊槽位节点（由 CapsuleBarWidget 共享创建，支持 1..5 项动态槽位）
+  // 构建可复用的预占胶囊槽位节点（由 CapsuleBarWidget 共享创建，支持 1..6 项动态槽位）
   const capsuleSlots = [
     createCapsuleSlotNode(0, 'tps'),
     createCapsuleSlotNode(1, 'ttft'),
     createCapsuleSlotNode(2, 'context'),
     createCapsuleSlotNode(3, 'none'),
     createCapsuleSlotNode(4, 'none'),
+    createCapsuleSlotNode(5, 'none'),
   ];
   const capsuleSeps = [
     h('span', { className: 'wm-sep wm-sep-speed', 'data-sep-for-rank': '2' }),
     h('span', { className: 'wm-sep wm-sep-quota', 'data-sep-for-rank': '3' }),
+    h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
   ];
@@ -20581,6 +20796,8 @@ function mountWindowOverlay() {
       capsuleSlots[3].el,
       capsuleSeps[3],
       capsuleSlots[4].el,
+      capsuleSeps[4],
+      capsuleSlots[5].el,
       updateDot,
     ]
   );

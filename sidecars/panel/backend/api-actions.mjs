@@ -46,6 +46,7 @@ import { getCloudStatus } from './pricing-catalog.mjs';
 import { buildTelemetryPayload } from './telemetry-builder.mjs';
 import {
   ensureDesktopLaunchEntriesConfigured,
+  triggerDarwinTerminalRelaunch,
   triggerDesktopHostRelaunch,
 } from './desktop-launcher-config.mjs';
 import {
@@ -461,9 +462,11 @@ export async function executeAccountCredentialAction(data) {
 export async function executeBridgeRelaunchAction() {
   ensureIdeRemoteDebuggingArgv({ enabled: true });
   await ensureDesktopLaunchEntriesConfigured({ enabled: true }).catch(() => {});
-  const result = await triggerDesktopHostRelaunch({
-    stalePortFiles: resolveDevToolsPortCandidates(),
-  });
+  const stalePortFiles = resolveDevToolsPortCandidates();
+  const result =
+    process.platform === 'darwin'
+      ? await triggerDarwinTerminalRelaunch({ stalePortFiles })
+      : await triggerDesktopHostRelaunch({ stalePortFiles });
   return {
     status: result.ok ? 200 : Number(result.status || 500),
     contentType: 'application/json',

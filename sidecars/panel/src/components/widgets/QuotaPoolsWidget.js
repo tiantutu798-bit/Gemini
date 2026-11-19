@@ -13,9 +13,31 @@ import {
   patchStyleVar,
   patchText,
 } from '../../core/domPatch.js';
-import { formatCountdown, formatTokens, formatUsd } from '../../core/formatters.js';
+import {
+  formatCountdown,
+  formatTokens,
+  formatUsd,
+  resolveQuotaRemainingBarGradient,
+} from '../../core/formatters.js';
 import { createSvgIcon } from '../../icons/SvgIcon.js';
 import { getEffectiveLocale, t } from '../../i18n/index.js';
+
+const QUOTA_POOL_DISPLAY_ORDER = {
+  Gemini: 0,
+  'Claude & GPT': 1,
+  Claude: 1,
+  GPT: 1,
+  Argon: 2,
+  Carbon: 3,
+};
+
+function getPoolDisplayRank(pool) {
+  const famRank = QUOTA_POOL_DISPLAY_ORDER[pool?.family];
+  if (famRank !== undefined) return famRank;
+  const keyRank = QUOTA_POOL_DISPLAY_ORDER[pool?.poolKey];
+  if (keyRank !== undefined) return keyRank;
+  return 99;
+}
 
 /**
  * 归一化动态配额池列表；在官方配额尚未返回时回退预占 Gemini 与 Claude & GPT 两个标准池槽位。
@@ -35,8 +57,9 @@ export function buildQuotaPoolItems(quotas, minuteTick = 0, { isPending = false 
           { poolKey: 'Gemini', poolLabel: 'Gemini', family: 'Gemini' },
           { poolKey: 'Claude & GPT', poolLabel: 'Claude & GPT', family: 'Claude & GPT' },
         ];
+  const orderedPools = [...rawPools].sort((a, b) => getPoolDisplayRank(a) - getPoolDisplayRank(b));
   const weekly = safeQuotas.weekly || {};
-  const poolItems = rawPools.map((p) => {
+  const poolItems = orderedPools.map((p) => {
     const key = p.poolKey || p.family || p.poolLabel || 'Other';
     const poolLabel = p.poolLabel || p.family || key;
     const isActivePool =
@@ -89,8 +112,8 @@ export function createPoolQuotaRow() {
   ]);
 
   const el = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, [
-    row5h,
     rowWk,
+    row5h,
   ]);
 
   return {
@@ -206,10 +229,16 @@ export function syncPoolQuotaRow(refs, item, idx, rowEl) {
         })
       : fallbackMetaText
   );
-  patchStyleVar(refs.fill5h, '--fill-w', `${Math.min(100, used5hVal)}%`);
+  const rem5hClamped = has5h ? Math.max(0, Math.min(100, rem5hVal)) : 0;
+  patchStyleVar(refs.fill5h, '--fill-w', has5h ? `${rem5hClamped}%` : '0%');
+  patchStyleVar(
+    refs.fill5h,
+    '--fill-bg',
+    has5h ? resolveQuotaRemainingBarGradient(rem5hClamped) : ''
+  );
   patchClasses(refs.fill5h, {
-    'tone-warn': used5hVal >= 70 && used5hVal < 85,
-    'tone-danger': used5hVal >= 85,
+    'tone-warn': has5h && rem5hClamped <= 30 && rem5hClamped > 15,
+    'tone-danger': has5h && rem5hClamped <= 15,
   });
 
   const customTitle =
@@ -253,10 +282,16 @@ export function syncPoolQuotaRow(refs, item, idx, rowEl) {
         })
       : fallbackMetaText
   );
-  patchStyleVar(refs.fillWk, '--fill-w', `${Math.min(100, usedWkVal)}%`);
+  const remWkClamped = hasWk ? Math.max(0, Math.min(100, remWkVal)) : 0;
+  patchStyleVar(refs.fillWk, '--fill-w', hasWk ? `${remWkClamped}%` : '0%');
+  patchStyleVar(
+    refs.fillWk,
+    '--fill-bg',
+    hasWk ? resolveQuotaRemainingBarGradient(remWkClamped) : ''
+  );
   patchClasses(refs.fillWk, {
-    'tone-warn': usedWkVal >= 70 && usedWkVal < 85,
-    'tone-danger': usedWkVal >= 85,
+    'tone-warn': hasWk && remWkClamped <= 30 && remWkClamped > 15,
+    'tone-danger': hasWk && remWkClamped <= 15,
   });
 }
 

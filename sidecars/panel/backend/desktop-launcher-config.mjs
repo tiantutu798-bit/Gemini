@@ -18,7 +18,7 @@
  *      并以纯净桌面环境变量追加 `--remote-debugging-port=0` 重新拉起宿主客户端。
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { DATA_DIR, lsRuntimeEndpoint } from './config.mjs';
@@ -991,5 +991,630 @@ export async function triggerDesktopHostRelaunch({
     relaunching: true,
     platform,
     executablePath: hostInfo.executablePath,
+  };
+}
+
+/**
+ * 解析 POSIX `ps -o etime=` 时间字符串（支持 `MM:SS`、`HH:MM:SS`、`DD-HH:MM:SS`）为秒数。
+ *
+ * @param {unknown} etimeStr
+ * @returns {number|null}
+ */
+export function parsePsElapsedSeconds(etimeStr) {
+  const raw = String(etimeStr ?? '').trim();
+  if (!raw) return null;
+  let days = 0;
+  let timePart = raw;
+  const dashIdx = raw.indexOf('-');
+  if (dashIdx >= 0) {
+    const dayStr = raw.slice(0, dashIdx);
+    if (!/^\d+$/.test(dayStr)) return null;
+    days = Number(dayStr);
+    timePart = raw.slice(dashIdx + 1);
+  }
+  const parts = timePart.split(':');
+  if (parts.length !== 2 && parts.length !== 3) return null;
+  if (!parts.every((p) => /^\d+$/.test(p))) return null;
+  const nums = parts.map(Number);
+  const hours = parts.length === 3 ? nums[0] : 0;
+  const mins = parts.length === 3 ? nums[1] : nums[0];
+  const secs = parts.length === 3 ? nums[2] : nums[1];
+  if (mins >= 60 || secs >= 60 || (parts.length === 3 && hours >= 24)) return null;
+  return days * 86400 + hours * 3600 + mins * 60 + secs;
+}
+
+/**
+ * 检测本机当前正在运行的 macOS Antigravity Desktop 主进程及其已运行时长与调试参数状态。
+ *
+ * @param {{ execFileFn?: ((file: string, args: string[], opts?: object) => Promise<string>)|null }} [options]
+ * @returns {Promise<{ pid: number, elapsedSec: number|null, hasRemoteDebugFlag: boolean, command: string } | null>}
+ */
+export async function inspectRunningDarwinDesktopHost({ execFileFn = null } = {}) {
+  const runner = execFileFn || runLauncherExecFile;
+  try {
+    const stdout = await runner('ps', ['-axo', 'pid=,etime=,command='], { timeoutMs: 2500 });
+    for (const rawLine of String(stdout || '').split(/\r?\n/)) {
+      const m = rawLine.trim().match(/^(\d+)\s+(\S+)\s+(.+)$/);
+      if (!m) continue;
+      const pid = Number(m[1]);
+      const etime = m[2];
+      const command = m[3];
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+      if (/Antigravity Helper/i.test(command) || /Antigravity IDE\.app/i.test(command)) continue;
+      if (!/(?:^|\/)Antigravity\.app\/Contents\/MacOS\/Antigravity(?:\s|$)/.test(command)) continue;
+      return {
+        pid,
+        elapsedSec: parsePsElapsedSeconds(etime),
+        hasRemoteDebugFlag: REMOTE_DEBUG_ANY_RE.test(command),
+        command,
+      };
+    }
+  } catch {
+    // 忽略 ps 进程探测异常
+  }
+  return null;
+}
+
+function shSingleQuote(val) {
+  return `'${String(val ?? '').replace(/'/g, `'\\''`)}'`;
+}
+
+export const DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME = 'relaunch-antigravity-debug.command';
+
+/**
+ * 构建 macOS 外部 Terminal `.command` 重拉与校验脚本（纯 UTF-8 / LF / Bash 3.2 兼容）：
+ * 检测带调试端口状态 -> 平滑终止旧实例（Main + Helper + language_server）-> 清理陈旧端口文件 ->
+ * 以 `--remote-debugging-port=0` 重启 Antigravity -> 校验端口就绪 -> 等待插件真实挂载底部额度栏 ->
+ * 确认运行成功后再倒计时 3 秒并仅关闭当前单标签 Terminal 窗口。
+ *
+ * @param {{
+ *   appBundlePath?: string,
+ *   kind?: 'desktop'|'ide'|'',
+ *   stalePortFiles?: string[],
+ *   homeDir?: string,
+ *   leaseFilePath?: string,
+ * }} [options]
+ * @returns {string}
+ */
+export function buildDarwinTerminalRelaunchScript({
+  appBundlePath = '/Applications/Antigravity.app',
+  kind = 'desktop',
+  stalePortFiles = [],
+  homeDir = homedir(),
+  leaseFilePath = join(DATA_DIR, 'window-bridge-lease.json'),
+} = {}) {
+  const cleanBundle =
+    String(appBundlePath || '/Applications/Antigravity.app')
+      .trim()
+      .replace(/\/+$/, '') || '/Applications/Antigravity.app';
+  const appBinName = kind === 'ide' ? 'Antigravity IDE' : 'Antigravity';
+  const defaultPortFile = join(
+    homeDir || homedir(),
+    'Library',
+    'Application Support',
+    appBinName,
+    'DevToolsActivePort'
+  );
+  const rawPorts = Array.isArray(stalePortFiles) ? stalePortFiles : [];
+  const portList = [...new Set(rawPorts.map((p) => String(p || '').trim()).filter(Boolean))];
+  if (portList.length === 0) {
+    portList.push(defaultPortFile);
+  }
+  const portLiterals = portList.map(shSingleQuote).join(' ');
+  const resolvedLeaseFile =
+    String(leaseFilePath || '').trim() || join(DATA_DIR, 'window-bridge-lease.json');
+
+  return [
+    '#!/bin/bash',
+    'export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"',
+    '',
+    `APP_BUNDLE=${shSingleQuote(cleanBundle)}`,
+    `APP_BIN_NAME=${shSingleQuote(appBinName)}`,
+    'APP_MAIN_BIN="${APP_BUNDLE}/Contents/MacOS/${APP_BIN_NAME}"',
+    'APP_CONTENTS_PREFIX="${APP_BUNDLE}/Contents/"',
+    `PORT_FILES=(${portLiterals})`,
+    `LEASE_FILE=${shSingleQuote(resolvedLeaseFile)}`,
+    '',
+    'echo "========================================"',
+    'echo "  Antigravity 底部额度栏自动拉起工具"',
+    'echo "========================================"',
+    'echo ""',
+    '',
+    'MY_TTY="$(tty 2>/dev/null || true)"',
+    'TARGET_WIN_ID=""',
+    'if [ -n "$MY_TTY" ]; then',
+    '  TARGET_WIN_ID="$(/usr/bin/osascript - "$MY_TTY" 2>/dev/null <<\'APPLESCRIPT\' || true',
+    'on run argv',
+    '  set targetTty to item 1 of argv',
+    '  tell application "Terminal"',
+    '    repeat with w in windows',
+    '      try',
+    '        if (count of tabs of w) is 1 then',
+    '          repeat with t in tabs of w',
+    '            if (tty of t as text) is targetTty then',
+    '              return (id of w) as text',
+    '            end if',
+    '          end repeat',
+    '        end if',
+    '      end try',
+    '    end repeat',
+    '  end tell',
+    '  return ""',
+    'end run',
+    'APPLESCRIPT',
+    ')"',
+    'fi',
+    '',
+    'find_main_pids() {',
+    '  ps -axo pid=,command= | awk -v bin="$APP_MAIN_BIN" \'',
+    '    {',
+    '      pid = $1',
+    '      sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", $0)',
+    '      if ($0 == bin || index($0, bin " ") == 1) {',
+    '        print pid',
+    '      }',
+    '    }',
+    '  \'',
+    '}',
+    '',
+    'main_has_debug_flag() {',
+    '  ps -axo pid=,command= | awk -v bin="$APP_MAIN_BIN" \'',
+    '    BEGIN { found = 0 }',
+    '    {',
+    '      sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", $0)',
+    '      if ($0 == bin || index($0, bin " ") == 1) {',
+    '        if ($0 ~ /(^|[[:space:]])--remote-debugging-port(=|[[:space:]]|$)/) {',
+    '          found = 1',
+    '        }',
+    '      }',
+    '    }',
+    '    END { exit(found ? 0 : 1) }',
+    '  \'',
+    '}',
+    '',
+    'find_all_app_pids() {',
+    '  ps -axo pid=,command= | awk -v pfx="$APP_CONTENTS_PREFIX" \'',
+    '    {',
+    '      pid = $1',
+    '      sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "", $0)',
+    '      if (index($0, pfx) == 1) {',
+    '        print pid',
+    '      }',
+    '    }',
+    '  \'',
+    '}',
+    '',
+    'read_active_devtools_port() {',
+    '  local pf=""',
+    '  local first_line=""',
+    '  for pf in "${PORT_FILES[@]}"; do',
+    '    [ -s "$pf" ] || continue',
+    '    first_line="$(head -n 1 "$pf" 2>/dev/null | tr -d \'\\r\\n[:space:]\')"',
+    '    case "$first_line" in',
+    '      \'\'|*[!0-9]*) continue ;;',
+    '    esac',
+    '    if [ "$first_line" -gt 0 ] 2>/dev/null; then',
+    '      printf \'%s\\n\' "$first_line"',
+    '      return 0',
+    '    fi',
+    '  done',
+    '  return 1',
+    '}',
+    '',
+    'now_epoch_ms() {',
+    '  /usr/bin/perl -MTime::HiRes=time -e \'print int(time() * 1000)\'',
+    '}',
+    '',
+    'check_bridge_mounted() {',
+    '  local min_ms="${1:-0}"',
+    '  /usr/bin/perl -MJSON::PP -MErrno=EPERM -e \'',
+    '    my ($path, $min_ms) = @ARGV;',
+    '    $min_ms = 0 + ($min_ms || 0);',
+    '    open(my $fh, "<", $path) or exit 1;',
+    '    local $/;',
+    '    my $raw = <$fh>;',
+    '    close($fh);',
+    '    my $d = eval { decode_json($raw) };',
+    '    exit 1 if ref($d) ne "HASH";',
+    '    exit 1 if ($d->{syncState} // "") ne "active";',
+    '    my $alive = int($d->{aliveCount} // 0);',
+    '    exit 1 if $alive < 1;',
+    '    my $pid = int($d->{pid} // 0);',
+    '    exit 1 if $pid <= 0;',
+    '    exit 1 unless (kill(0, $pid) || $! == EPERM);',
+    '    my $updated = 0 + ($d->{updatedAtMs} // 0);',
+    '    exit 1 if ($min_ms > 0 && $updated < $min_ms);',
+    '    print $alive;',
+    '    exit 0;',
+    '  \' "$LEASE_FILE" "$min_ms" 2>/dev/null',
+    '}',
+    '',
+    'describe_lease_state() {',
+    '  /usr/bin/perl -MJSON::PP -e \'',
+    '    my ($path) = @ARGV;',
+    '    if (!-e $path) { print "lease文件不存在"; exit 0; }',
+    '    open(my $fh, "<", $path) or do { print "无法读取lease文件"; exit 0; };',
+    '    local $/;',
+    '    my $raw = <$fh>;',
+    '    close($fh);',
+    '    my $d = eval { decode_json($raw) };',
+    '    if (ref($d) ne "HASH") { print "lease内容解析失败"; exit 0; }',
+    '    printf "syncState=%s, aliveCount=%s, pid=%s", ($d->{syncState} // "none"), ($d->{aliveCount} // 0), ($d->{pid} // 0);',
+    '  \' "$LEASE_FILE" 2>/dev/null || echo "未知状态"',
+    '}',
+    '',
+    'schedule_close_this_window() {',
+    '  echo ""',
+    '  echo "⏳ 已确认运行成功，将在 3 秒后自动关闭此终端窗口："',
+    '  for n in 3 2 1; do',
+    '    echo "   ${n}..."',
+    '    sleep 1',
+    '  done',
+    '  case "$TARGET_WIN_ID" in',
+    '    \'\'|*[!0-9]*) ;;',
+    '    *)',
+    '      /usr/bin/perl -MPOSIX -e \'',
+    '        my $wid = $ARGV[0];',
+    '        my $pid = fork();',
+    '        exit 0 if !defined($pid) || $pid > 0;',
+    '        POSIX::setsid();',
+    '        open(STDIN, "<", "/dev/null");',
+    '        open(STDOUT, ">", "/dev/null");',
+    '        open(STDERR, ">", "/dev/null");',
+    '        select(undef, undef, undef, 0.45);',
+    '        exec("/usr/bin/osascript", "-e", "tell application \\"Terminal\\" to close (every window whose id is " . $wid . ") saving no");',
+    '      \' "$TARGET_WIN_ID" >/dev/null 2>&1 || true',
+    '      ;;',
+    '  esac',
+    '  exit 0',
+    '}',
+    '',
+    'SKIP_RELAUNCH=0',
+    'MIN_LEASE_MS=0',
+    'ACTIVE_PORT="$(read_active_devtools_port || true)"',
+    'if main_has_debug_flag && [ -n "$ACTIVE_PORT" ]; then',
+    '  ALIVE_COUNT="$(check_bridge_mounted 0 || true)"',
+    '  if [ -n "$ALIVE_COUNT" ]; then',
+    '    echo "========================================"',
+    '    echo "✅ 运行成功！反重力与底部用量额度栏均已正常运行！"',
+    '    echo "   本地调试端口：${ACTIVE_PORT} | 已挂载窗口：${ALIVE_COUNT}"',
+    '    echo "========================================"',
+    '    schedule_close_this_window',
+    '  fi',
+    '  SKIP_RELAUNCH=1',
+    '  echo "✔ 检测到本地调试端口已就绪（${ACTIVE_PORT}），正在等待底部用量与额度栏挂载完成..."',
+    'fi',
+    '',
+    'if [ "$SKIP_RELAUNCH" -eq 0 ]; then',
+    '  echo "[1/4] 正在关闭未启用调试端口的旧反重力进程..."',
+    '  MAIN_PIDS="$(find_main_pids || true)"',
+    '  if [ -n "$MAIN_PIDS" ]; then',
+    '    for p in $MAIN_PIDS; do',
+    '      kill -TERM "$p" 2>/dev/null || true',
+    '    done',
+    '  fi',
+    '',
+    '  i=0',
+    '  while [ $i -lt 35 ]; do',
+    '    REMAIN_PIDS="$(find_all_app_pids || true)"',
+    '    [ -z "$REMAIN_PIDS" ] && break',
+    '    if [ $i -eq 25 ]; then',
+    '      for p in $REMAIN_PIDS; do',
+    '        kill -TERM "$p" 2>/dev/null || true',
+    '      done',
+    '    fi',
+    '    sleep 0.2',
+    '    i=$((i + 1))',
+    '  done',
+    '',
+    '  REMAIN_PIDS="$(find_all_app_pids || true)"',
+    '  if [ -n "$REMAIN_PIDS" ]; then',
+    '    for p in $REMAIN_PIDS; do',
+    '      kill -KILL "$p" 2>/dev/null || true',
+    '    done',
+    '    j=0',
+    '    while [ $j -lt 15 ] && [ -n "$(find_all_app_pids || true)" ]; do',
+    '      sleep 0.2',
+    '      j=$((j + 1))',
+    '    done',
+    '  fi',
+    '  sleep 0.8',
+    '',
+    '  for pf in "${PORT_FILES[@]}"; do',
+    '    rm -f "$pf" 2>/dev/null || true',
+    '  done',
+    '',
+    '  MIN_LEASE_MS="$(now_epoch_ms)"',
+    '',
+    '  echo "[2/4] 正在以调试参数 (--remote-debugging-port=0) 启动 ${APP_BIN_NAME}..."',
+    '  /usr/bin/open -a "$APP_BUNDLE" --args --remote-debugging-port=0 || true',
+    '',
+    '  echo "[3/4] 正在等待本地调试端口就绪..."',
+    '  ACTIVE_PORT=""',
+    '  k=0',
+    '  while [ $k -lt 50 ]; do',
+    '    if main_has_debug_flag; then',
+    '      ACTIVE_PORT="$(read_active_devtools_port || true)"',
+    '      if [ -n "$ACTIVE_PORT" ]; then',
+    '        break',
+    '      fi',
+    '    fi',
+    '    if [ $k -eq 14 ] && [ -z "$(find_main_pids || true)" ]; then',
+    '      /usr/bin/open -n -a "$APP_BUNDLE" --args --remote-debugging-port=0 || true',
+    '    fi',
+    '    sleep 0.3',
+    '    k=$((k + 1))',
+    '  done',
+    '',
+    '  if ! main_has_debug_flag || [ -z "$ACTIVE_PORT" ]; then',
+    '    echo ""',
+    '    echo "❌ 等待调试端口超时（15 秒），请查看以下诊断信息："',
+    '    MAIN_CHECK="$(find_main_pids || true)"',
+    '    if [ -n "$MAIN_CHECK" ]; then',
+    '      echo " - 主进程运行中 PID: $(printf \'%s\' "$MAIN_CHECK" | tr \'\\n\' \' \')"',
+    '    else',
+    '      echo " - 未检测到主进程运行 (${APP_MAIN_BIN})"',
+    '    fi',
+    '    if main_has_debug_flag; then',
+    '      echo " - 调试启动参数 (--remote-debugging-port): 已检测到"',
+    '    else',
+    '      echo " - 调试启动参数 (--remote-debugging-port): 未检测到"',
+    '    fi',
+    '    echo " - DevToolsActivePort 文件状态: ${ACTIVE_PORT:-未生成}"',
+    '    echo "请保留此窗口以便排查原因。"',
+    '    exit 1',
+    '  fi',
+    '  echo "   ✔ 本地调试端口已就绪：${ACTIVE_PORT}"',
+    'fi',
+    '',
+    'echo "[4/4] 正在等待底部用量与额度栏挂载完成..."',
+    'ALIVE_COUNT=""',
+    'm=0',
+    'while [ $m -lt 84 ]; do',
+    '  ALIVE_COUNT="$(check_bridge_mounted "$MIN_LEASE_MS" || true)"',
+    '  if [ -n "$ALIVE_COUNT" ]; then',
+    '    break',
+    '  fi',
+    '  sleep 0.3',
+    '  m=$((m + 1))',
+    'done',
+    '',
+    'if [ -n "$ALIVE_COUNT" ]; then',
+    '  echo ""',
+    '  echo "========================================"',
+    '  echo "✅ 运行成功！底部用量与额度栏已成功加载显示！"',
+    '  echo "   本地调试端口：${ACTIVE_PORT} | 已挂载窗口：${ALIVE_COUNT}"',
+    '  echo "========================================"',
+    '  schedule_close_this_window',
+    'fi',
+    '',
+    'echo ""',
+    'echo "⚠️ 调试端口已就绪（${ACTIVE_PORT}），但等待底部额度栏挂载超时（25 秒）。"',
+    'echo " - 桥接状态：$(describe_lease_state)"',
+    'echo "请保留此窗口以便排查原因（或确认插件面板中未切换为「仅侧边栏」模式）。"',
+    'exit 1',
+    '',
+  ].join('\n');
+}
+
+/**
+ * 在磁盘写入并授权（`0o755`）macOS 外部 Terminal 重拉 `.command` 脚本。
+ */
+export function ensureDarwinTerminalRelaunchScript({
+  appBundlePath = '/Applications/Antigravity.app',
+  kind = 'desktop',
+  stalePortFiles = [],
+  homeDir = homedir(),
+  leaseFilePath = join(DATA_DIR, 'window-bridge-lease.json'),
+  scriptPath = join(DATA_DIR, DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME),
+  mkdirFn = mkdirSync,
+  writeFileFn = writeFileSync,
+  renameFn = renameSync,
+  unlinkFn = unlinkSync,
+  chmodFn = chmodSync,
+} = {}) {
+  const content = buildDarwinTerminalRelaunchScript({
+    appBundlePath,
+    kind,
+    stalePortFiles,
+    homeDir,
+    leaseFilePath,
+  });
+  writeTextFileAtomically(scriptPath, content, {
+    mkdirFn,
+    writeFn: writeFileFn,
+    renameFn,
+    unlinkFn,
+  });
+  chmodFn(scriptPath, 0o755);
+  return { scriptPath, content };
+}
+
+/**
+ * macOS 通过拉起外部系统 Terminal 窗口执行可见重启 + 端口校验 + 挂载确认后延迟 3 秒自动关闭脚本。
+ */
+export async function triggerDarwinTerminalRelaunch({
+  env = process.env,
+  platform = process.platform,
+  homeDir = homedir(),
+  stalePortFiles = [],
+  leaseFilePath = join(DATA_DIR, 'window-bridge-lease.json'),
+  scriptPath = join(DATA_DIR, DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME),
+  execFileFn = null,
+  spawnFn = null,
+  existsFn = existsSync,
+  writeFileFn = writeFileSync,
+  mkdirFn = mkdirSync,
+  renameFn = renameSync,
+  unlinkFn = unlinkSync,
+  chmodFn = chmodSync,
+  allowInTest = false,
+} = {}) {
+  if (platform !== 'darwin') {
+    return { ok: false, status: 400, error: 'Darwin only' };
+  }
+  if (lsRuntimeEndpoint.addr === 'test.invalid' && !allowInTest) {
+    return { ok: false, status: 403, error: 'Disabled in test sandbox' };
+  }
+
+  let hostInfo = resolveDesktopHostExecutable({ env, platform, homeDir, existsFn });
+  if (!hostInfo.found) {
+    hostInfo = await discoverRunningHostExecutable({ platform, execFileFn });
+  }
+  if (!hostInfo.found) {
+    return {
+      ok: false,
+      status: 404,
+      error: 'Unable to locate Antigravity executable on this machine',
+    };
+  }
+
+  const appTarget = hostInfo.appBundlePath || hostInfo.executablePath;
+  ensureDarwinTerminalRelaunchScript({
+    appBundlePath: appTarget,
+    kind: hostInfo.kind || 'desktop',
+    stalePortFiles,
+    homeDir,
+    leaseFilePath,
+    scriptPath,
+    mkdirFn,
+    writeFileFn,
+    renameFn,
+    unlinkFn,
+    chmodFn,
+  });
+
+  const cleanEnv = buildSanitizedDesktopRelaunchEnv(env);
+  const spawner = spawnFn || spawnDetachedProcess;
+  await spawner('/usr/bin/open', ['-a', 'Terminal', scriptPath], {
+    env: cleanEnv,
+  });
+
+  return {
+    ok: true,
+    relaunching: true,
+    viaTerminal: true,
+    platform,
+    executablePath: appTarget,
+    scriptPath,
+  };
+}
+
+/**
+ * macOS Antigravity Desktop 2.33.0+ 冷启动无调试端口时的受保护自动带参重拉自愈：
+ * 仅在桥接启动窗（默认 20s）且宿主刚启动（默认 <=45s）内执行单次拉起外部终端脚本，
+ * 并通过持久化同 PID 去重与 60s 冷却熔断防止循环重启或打断正常对话。
+ */
+export async function maybeAutoRelaunchDarwinDesktopHost({
+  env = process.env,
+  platform = process.platform,
+  homeDir = homedir(),
+  stalePortFiles = [],
+  leaseFilePath = join(DATA_DIR, 'window-bridge-lease.json'),
+  stateFilePath = join(DATA_DIR, 'auto-relaunch-state.json'),
+  scriptPath = join(DATA_DIR, DARWIN_TERMINAL_RELAUNCH_SCRIPT_NAME),
+  bridgeUptimeMs = 0,
+  maxBridgeWindowMs = 20_000,
+  maxHostElapsedSec = 45,
+  cooldownMs = 60_000,
+  nowMs = Date.now(),
+  execFileFn = null,
+  spawnFn = null,
+  existsFn = existsSync,
+  readFileFn = readFileSync,
+  writeFileFn = writeFileSync,
+  mkdirFn = mkdirSync,
+  renameFn = renameSync,
+  unlinkFn = unlinkSync,
+  chmodFn = chmodSync,
+  allowInTest = false,
+} = {}) {
+  if (platform !== 'darwin') {
+    return { triggered: false, reason: 'non_darwin' };
+  }
+  if ((lsRuntimeEndpoint.addr === 'test.invalid' || process.env.NODE_TEST_CONTEXT) && !allowInTest) {
+    return { triggered: false, reason: 'test_sandbox' };
+  }
+  if (bridgeUptimeMs > maxBridgeWindowMs) {
+    return { triggered: false, reason: 'bridge_past_startup_window' };
+  }
+
+  const host = await inspectRunningDarwinDesktopHost({ execFileFn });
+  if (!host) {
+    return { triggered: false, reason: 'host_not_found' };
+  }
+  if (host.hasRemoteDebugFlag) {
+    return { triggered: false, reason: 'already_has_debug_flag', hostPid: host.pid };
+  }
+  if (host.elapsedSec == null || host.elapsedSec > maxHostElapsedSec) {
+    return {
+      triggered: false,
+      reason: 'host_past_startup_window',
+      hostPid: host.pid,
+      elapsedSec: host.elapsedSec,
+    };
+  }
+
+  let prev = { lastPid: 0, attempts: [] };
+  try {
+    if (stateFilePath && existsFn(stateFilePath)) {
+      const parsed = JSON.parse(readFileFn(stateFilePath, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        prev = parsed;
+      }
+    }
+  } catch {
+    // 状态文件损坏或不可读时按初始空状态处理
+  }
+
+  if (Number(prev.lastPid) === host.pid) {
+    return { triggered: false, reason: 'same_pid_already_relaunched', hostPid: host.pid };
+  }
+  const recent = (Array.isArray(prev.attempts) ? prev.attempts : [])
+    .map(Number)
+    .filter((ts) => Number.isFinite(ts) && ts > 0 && nowMs - ts >= 0 && nowMs - ts < cooldownMs);
+  if (recent.length >= 1) {
+    return { triggered: false, reason: 'cooldown_circuit_breaker', hostPid: host.pid };
+  }
+
+  if (stateFilePath) {
+    writeTextFileAtomically(
+      stateFilePath,
+      JSON.stringify(
+        {
+          lastPid: host.pid,
+          attempts: [...recent, nowMs],
+          updatedAtMs: nowMs,
+        },
+        null,
+        2
+      ),
+      { mkdirFn, writeFn: writeFileFn, renameFn, unlinkFn }
+    );
+  }
+
+  const res = await triggerDarwinTerminalRelaunch({
+    env,
+    platform,
+    homeDir,
+    stalePortFiles,
+    leaseFilePath,
+    scriptPath,
+    execFileFn,
+    spawnFn,
+    existsFn,
+    writeFileFn,
+    mkdirFn,
+    renameFn,
+    unlinkFn,
+    chmodFn,
+    allowInTest,
+  });
+  return {
+    triggered: Boolean(res?.ok),
+    reason: res?.ok ? 'auto_relaunching' : String(res?.error || 'relaunch_failed'),
+    hostPid: host.pid,
+    scriptPath: res?.scriptPath || scriptPath,
+    result: res,
   };
 }

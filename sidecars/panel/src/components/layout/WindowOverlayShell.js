@@ -1153,17 +1153,19 @@ export function mountWindowOverlay() {
     [multiDot, multiLabel]
   );
 
-  // 构建可复用的预占胶囊槽位节点（由 CapsuleBarWidget 共享创建，支持 1..5 项动态槽位）
+  // 构建可复用的预占胶囊槽位节点（由 CapsuleBarWidget 共享创建，支持 1..6 项动态槽位）
   const capsuleSlots = [
     createCapsuleSlotNode(0, 'tps'),
     createCapsuleSlotNode(1, 'ttft'),
     createCapsuleSlotNode(2, 'context'),
     createCapsuleSlotNode(3, 'none'),
     createCapsuleSlotNode(4, 'none'),
+    createCapsuleSlotNode(5, 'none'),
   ];
   const capsuleSeps = [
     h('span', { className: 'wm-sep wm-sep-speed', 'data-sep-for-rank': '2' }),
     h('span', { className: 'wm-sep wm-sep-quota', 'data-sep-for-rank': '3' }),
+    h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
   ];
@@ -1316,6 +1318,8 @@ export function mountWindowOverlay() {
       capsuleSlots[3].el,
       capsuleSeps[3],
       capsuleSlots[4].el,
+      capsuleSeps[4],
+      capsuleSlots[5].el,
       updateDot,
     ]
   );

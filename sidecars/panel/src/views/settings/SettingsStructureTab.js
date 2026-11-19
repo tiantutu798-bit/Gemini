@@ -316,7 +316,7 @@ export const SettingsStructureTab = defineComponent({
       items: draftTopbarSlots,
       options: getCapsuleMetricOptions(),
       minItems: 1,
-      maxItems: 5,
+      maxItems: 6,
       addBtnTextFn: (count, max) => t('settings.str.addCapsuleSlot', { count, max }),
       onPreview: (previewItems) => {
         draftTopbarSlots = normalizeClientTopbarSlots(previewItems);

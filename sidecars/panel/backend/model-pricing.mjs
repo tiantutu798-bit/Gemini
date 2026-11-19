@@ -78,6 +78,25 @@ export function isArgonModelIdentifier(...parts) {
 }
 
 /**
+ * 判断一组模型标识字段是否指向 Gemini 4 Neon 系列模型（含 M537 Orchestrator (Neon)）。
+ *
+ * @param {...string} parts 待检测的标识片段
+ * @returns {boolean}
+ */
+export function isNeonModelIdentifier(...parts) {
+  const text = parts.filter(Boolean).join(' ');
+  if (
+    /\bhydrogen\b|\bgemini-flash-worker-agy\b|MODEL_PLACEHOLDER_M(?:669|52[5678])\b/i.test(text) &&
+    !/\bneon\b|MODEL_PLACEHOLDER_M537\b/i.test(text)
+  ) {
+    return false;
+  }
+  return /\bneon\b|gemini-4-neon|gemini-pro-orchestrator-neon|MODEL_PLACEHOLDER_M537\b/i.test(
+    text
+  );
+}
+
+/**
  * 判断一组模型标识字段是否指向 Gemini 4 Carbon 系列模型（含 M427/M429/M437/M438 及 M667 Orchestrator (Carbon)）。
  *
  * @param {...string} parts 待检测的标识片段
@@ -88,10 +107,13 @@ export function isCarbonModelIdentifier(...parts) {
   if (/\bcarbon\b|gemini-4-carbon|MODEL_PLACEHOLDER_M(?:42[79]|43[78]|667)\b/i.test(text)) {
     return true;
   }
-  if (/\bhydrogen\b|\bgemini-flash-worker-agy\b|MODEL_PLACEHOLDER_M(?:669|52[5678])\b/i.test(text)) {
+  if (
+    /\bhydrogen\b|\bgemini-flash-worker-agy\b|MODEL_PLACEHOLDER_M(?:669|52[5678])\b/i.test(text) ||
+    /\bneon\b|\bargon\b|-g1-pro\b|MODEL_PLACEHOLDER_M(?:537|41[789]|681)\b/i.test(text)
+  ) {
     return false;
   }
-  return /\bgemini-pro-orchestrator\b(?!-argon)/i.test(text);
+  return /\bgemini-pro-orchestrator(?![-\w])/i.test(text);
 }
 
 /**
@@ -137,8 +159,10 @@ export function formatGenericModelSlug(slug = '') {
   if (/^gemini-3-flash-(?:[abd]|agent)$/i.test(s)) return 'Gemini 3.5 Flash';
   if (/^gemini-3-flash-c$/i.test(s)) return 'Gemini 3 Flash';
   if (/^gemini-pro-(?:default|agent|b)$/i.test(s)) return 'Gemini 3.1 Pro';
+  if (/^gemini-pro-orchestrator-neon$/i.test(s)) return 'Orchestrator (Neon)';
+  if (/^gemini-pro-orchestrator-g1-pro$/i.test(s)) return 'Orchestrator (G1 Pro)';
   const m = s.match(
-    /^gemini-(\d+(?:\.\d+)?)-(pro|flash|argon|carbon|hydrogen|helix)(?:-(lite))?(?:-(xhigh|high|medium|low|extra-low|tiered|preview))?$/i
+    /^gemini-(\d+(?:\.\d+)?)-(pro|flash|argon|carbon|neon|hydrogen|helix)(?:-(lite))?(?:-(xhigh|high|medium|low|extra-low|tiered|preview))?$/i
   );
   if (m) {
     const ver = m[1];
@@ -471,6 +495,9 @@ export function formatUpstreamModelId(rawUpstream = '', mInfo = null) {
   }
   if (isArgonModelIdentifier(mInfo?.rawModel, mInfo?.modelId, mInfo?.label, s)) {
     return `${s} (argon-4)`;
+  }
+  if (isNeonModelIdentifier(mInfo?.rawModel, mInfo?.modelId, mInfo?.label, s)) {
+    return `${s} (neon-4)`;
   }
   if (isCarbonModelIdentifier(mInfo?.rawModel, mInfo?.modelId, mInfo?.label, s)) {
     return `${s} (carbon-4)`;

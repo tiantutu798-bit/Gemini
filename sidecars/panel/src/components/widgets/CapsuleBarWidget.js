@@ -5,7 +5,7 @@
  */
 
 import { defineComponent } from '../../core/component.js';
-import { h, patchAttr, patchClasses, patchText } from '../../core/domPatch.js';
+import { h, patchAttr, patchClasses, patchStyleVar, patchText } from '../../core/domPatch.js';
 import { t } from '../../i18n/index.js';
 import { createSvgIcon, SVG_NS } from '../../icons/SvgIcon.js';
 import { resolveCapsuleMetricPresentation } from '../../registries/metricRegistry.js';
@@ -130,6 +130,7 @@ export function createCapsuleSlotNode(slotIndex, initialMetric) {
   ringSvg.appendChild(ringTrack);
   ringSvg.appendChild(ringFill);
 
+  const tagSpan = h('span', { className: 'wm-slot-tag', text: '' });
   const isNone = initialMetric === 'none';
   const isCtx = initialMetric === 'context';
   const textSpan = h('span', {
@@ -166,6 +167,8 @@ export function createCapsuleSlotNode(slotIndex, initialMetric) {
 
   return {
     el,
+    tagSpan,
+    tagMounted: false,
     ringSvg,
     ringFill,
     textSpan,
@@ -174,11 +177,11 @@ export function createCapsuleSlotNode(slotIndex, initialMetric) {
 }
 
 /**
- * Patch 5 pre-allocated capsule slots and 4 separators in-place via `metricRegistry`.
+ * Patch pre-allocated capsule slots and separators in-place via `metricRegistry`.
  */
 export function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCtx) {
   let visRank = 0;
-  const visRanks = [0, 0, 0, 0, 0];
+  const visRanks = new Array(capsuleSlots.length).fill(0);
   for (let i = 0; i < capsuleSlots.length; i += 1) {
     const slot = capsuleSlots[i];
     const metricKey = i < slotKeys.length ? slotKeys[i] : 'none';
@@ -194,6 +197,18 @@ export function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCt
     patchAttr(slot.el, 'hidden', false);
     patchAttr(slot.el, 'data-metric', pres.metric);
     patchAttr(slot.el, 'data-vis-rank', String(visRank));
+
+    const hasTag = Boolean(pres.tagText);
+    if (hasTag) {
+      patchText(slot.tagSpan, pres.tagText);
+      if (!slot.tagMounted) {
+        slot.el.insertBefore(slot.tagSpan, slot.el.firstChild || slot.textSpan);
+        slot.tagMounted = true;
+      }
+    } else if (slot.tagMounted) {
+      slot.tagSpan.remove();
+      slot.tagMounted = false;
+    }
 
     if (pres.showRing && !slot.ringMounted) {
       slot.el.insertBefore(slot.ringSvg, slot.textSpan);
@@ -213,6 +228,7 @@ export function syncCapsuleSlotNodes(capsuleSlots, capsuleSeps, slotKeys, slotCt
 
     if (pres.showRing) {
       slot.ringFill.setAttribute('stroke-dashoffset', String(pres.dashOffset));
+      patchStyleVar(slot.ringFill, '--ring-color', pres.ringColor || '');
       patchClasses(slot.ringFill, { 'tone-warn': pres.warn, 'tone-danger': pres.danger });
     }
   }
@@ -255,10 +271,12 @@ export const CapsuleBarWidget = defineComponent({
       createCapsuleSlotNode(2, 'context'),
       createCapsuleSlotNode(3, 'none'),
       createCapsuleSlotNode(4, 'none'),
+      createCapsuleSlotNode(5, 'none'),
     ];
     const capsuleSeps = [
       h('span', { className: 'wm-sep wm-sep-speed', 'data-sep-for-rank': '2' }),
       h('span', { className: 'wm-sep wm-sep-quota', 'data-sep-for-rank': '3' }),
+      h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
       h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
       h('span', { className: 'wm-sep', 'data-sep-for-rank': '', hidden: true }),
     ];
@@ -281,6 +299,8 @@ export const CapsuleBarWidget = defineComponent({
         capsuleSlots[3].el,
         capsuleSeps[3],
         capsuleSlots[4].el,
+        capsuleSeps[4],
+        capsuleSlots[5].el,
       ]
     );
 

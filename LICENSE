@@ -677,7 +677,9 @@ Public License instead of this License.  But first, please read
 ## License
 
 Copyright (C) 2026 yuhuan-dev.
+Modified portions Copyright (C) 2026 tiantutu798-bit (2026-11).
 
 This project is licensed under the GNU General Public License v3.0 only (GPL-3.0-only).
+Derived from https://github.com/yuhuan-dev/antigravity-usage-monitor.
 
 See the [LICENSE](LICENSE) file for details.

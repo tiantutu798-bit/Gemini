@@ -2,20 +2,18 @@
 
 <img src="assets/logo.svg" alt="Antigravity Usage & Speed Monitor Logo" width="84" />
 
-# Antigravity Usage & Speed Monitor
+# Antigravity Usage & Speed Monitor (Gemini 定制增强版)
 
-Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、速率、上下文与配额监控插件，无外部 npm 依赖。
+Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、速率、上下文与配额监控插件（基于 [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor) 二次开发），无外部 npm 依赖。
 
-[![Release](https://img.shields.io/github/v/release/yuhuan-dev/antigravity-usage-monitor?style=flat-square&color=2A5E76&label=release)](https://github.com/yuhuan-dev/antigravity-usage-monitor/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/yuhuan-dev/antigravity-usage-monitor/total?style=flat-square&color=0ea5e9)](https://github.com/yuhuan-dev/antigravity-usage-monitor/releases)
-[![Stars](https://img.shields.io/github/stars/yuhuan-dev/antigravity-usage-monitor?style=flat-square&color=f59e0b)](https://github.com/yuhuan-dev/antigravity-usage-monitor/stargazers)
-[![License](https://img.shields.io/github/license/yuhuan-dev/antigravity-usage-monitor?style=flat-square&color=3b82f6)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/tiantutu798-bit/Gemini?style=flat-square&color=f59e0b)](https://github.com/tiantutu798-bit/Gemini/stargazers)
+[![License](https://img.shields.io/github/license/tiantutu798-bit/Gemini?style=flat-square&color=3b82f6)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20npm%20%E4%BE%9D%E8%B5%96-10b981?style=flat-square)](#本地开发)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=flat-square)](#客户端支持)
 
 [English](README.md) · 简体中文
 
-[功能](#功能) · [截图](#截图) · [客户端支持](#客户端支持) · [安装](#安装) · [使用方式](#使用方式) · [开发](#本地开发)
+[上游来源与改动](#上游来源与修改说明) · [功能](#功能) · [截图](#截图) · [客户端支持](#客户端支持) · [安装](#安装) · [使用方式](#使用方式) · [开发](#本地开发)
 
 <br />
 
@@ -23,9 +21,25 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 
 <br />
 
-[下载最新版本 (Releases)](https://github.com/yuhuan-dev/antigravity-usage-monitor/releases/latest) · [下载压缩包 (`usage-monitor.zip`)](https://github.com/yuhuan-dev/antigravity-usage-monitor/releases/latest/download/usage-monitor.zip)
+[下载代码压缩包 (`main.zip`)](https://github.com/tiantutu798-bit/Gemini/archive/refs/heads/main.zip) · [查看上游原仓库 (`yuhuan-dev/antigravity-usage-monitor`)](https://github.com/yuhuan-dev/antigravity-usage-monitor)
 
 </div>
+
+---
+
+## 上游来源与修改说明
+
+> [!IMPORTANT]
+> 本项目是基于 [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor)（`v1.5.1`）的 **GNU GPL v3.0 only 衍生修改版**（修改日期：2026-11）。项目完整保留原作者 `yuhuan-dev` 的版权声明、完整 Git 提交历史与 GPL-3.0 开源协议，并在此基础上持续开放源码。
+
+相较上游原版，本定制版主要新增与调整以下功能：
+
+- **输入框常驻 6 槽额度栏与蓝→红圆环**：胶囊槽位上限从 `5` 扩充至 `6`，新增 **Argon 周限 (`argon_weekly` / `A周`)** 指标；输入框 `G周 / G5h / C周 / C5h / A周` 均在百分比左侧渲染与上下文指示环一致的迷你圆环并解决 `52px` 定宽数字截断问题（支持 `G周 ○ XX% | G5h ○ XX% | C周 ○ XX% | C5h ○ XX% | A周 ○ XX% | ○ XX%`）。
+- **可用额度对齐官方 Usage 顺序**：模型池展示顺序调整为 `Gemini → Claude & GPT → Gemini 4 Argon → Carbon`，且每组内部改为 **`周限` 在上、`5h` 在下**。
+- **剩余量进度条与配色 B 连续渐变**：进度条宽度改为直观展示**剩余配额百分比**，右侧文案精简为仅显示剩余百分比（`{reset} · 剩余 {rem}%`）；颜色由分段跳变升级为 **纯蓝 `#3b82f6` → 橙黄 `#f59e0b` → 警示红 `#ef4444`** 连续插值渐变，并同步作用于输入框 5 个额度小圆环（上下文占用圆环保留原逻辑）。
+- **`Orchestrator (Neon)` 识别修复**：在 `pricing-catalog.json`、后端计费匹配与前端格式化中补齐 `MODEL_PLACEHOLDER_M537`（`gemini-pro-orchestrator-neon`），修复此前将该模型误归类为 `orchestrator-carbon` 的问题。
+- **macOS 2.33.0+ 冷启动外部终端自动自愈**：新增 `autoRelaunchDebug` 受保护冷启动机制与 [relaunch-antigravity-debug.command](sidecars/panel/backend/desktop-launcher-config.mjs) 生成器；当 bare 启动缺少 `--remote-debugging-port` 时自动打开系统 `Terminal` 执行带参重启并校验 `window-bridge-lease.json` 真正挂载成功后再等待 3 秒自动关闭自身窗口。
+- **中文清单本地化**：[plugin.json](plugin.json) 显示名调整为「用量与额度监控」。
 
 ---
 
@@ -37,7 +51,7 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 - **主/子代理联动与多会话管理**：按时间归并展示主代理与各子代理调用步骤（也可按单一代理过滤），支持可选轮次分组导轨与运行中子代理卡片原地展开，并在顶栏切换最近会话。
 - **调用明细与自定义 Token 格式**：包含「按步查看」与「按模型汇总」（含多模型拟合图）；支持增删与排序 2–14 列、独立开关速度分段配色，除预设的 `上下文 / 思考 / 正文` 和 `输入 / 输出 / 缓存` 外，可通过 `context:new:cache`、`in:out:cache` 等语法自定义 Token 组合展示。
 - **历史用量与来源统计**：按今天、1 天、7 天、14 天、30 天、全部或自定义起止日期时间统计总 Token、新输入与缓存读取节省金额、输出/思考拆分、按小时/按天趋势折线图、模型排行、客户端来源（App / IDE / CLI）与月度柱状图。
-- **多端胶囊与悬浮速览**：支持 Antigravity 2.0 顶栏/输入框停靠胶囊与右侧辅助栏、Antigravity IDE 顶栏/输入框胶囊、Antigravity CLI（`agy`）单行 24-bit ANSI `statusLine` 与独立 Web 页面；支持自定义 1–5 个胶囊指标槽位、悬停速览卡片内容以及自动适宽（或 `440~1080 px` 固定宽度）。
+- **多端胶囊与悬浮速览**：支持 Antigravity 2.0 顶栏/输入框停靠胶囊与右侧辅助栏、Antigravity IDE 顶栏/输入框胶囊、Antigravity CLI（`agy`）单行 24-bit ANSI `statusLine` 与独立 Web 页面；支持自定义 1–6 个胶囊指标槽位、悬停速览卡片内容以及自动适宽（或 `440~1080 px` 固定宽度）。
 - **不修改 `app.asar`**：桌面端与 IDE 的胶囊挂载及上下文请求改写均在运行时通过本地 CDP 内存注入完成（IDE 首次启用时仅向 `~/.antigravity-ide/argv.json` 写入 `"remote-debugging-port": "0"`，保留注释与原有配置），不触碰宿主安装包与 `app.asar`。
 - **按模型设置上下文窗口**：支持按模型系列（跨思考档位）统一指定上下文上限或跟随宿主默认；桌面端与 IDE 在请求层生效，CLI 通过环境变量 `AGY_CLI_AUTO_COMPACT_OVERRIDE` 控制。
 - **外观定制、离线读取与云端同步**：提供简体中文 / English / 自动跟随宿主语言、`sm / md / lg / xl` 字号、6 种主题强调色（含跟随宿主主题）；离线支持直读 CLI SQLite + WAL、`annotations/*.pbtxt`、`transcript.jsonl` 与 `.deep_stats_cache.json`；内置 GitHub [`pricing-catalog.json`](pricing-catalog.json) 同步、压缩步骤模型推断、面板内更新（手动 / 自动 / 关闭）及缓存重建与配置重置。
@@ -121,23 +135,23 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 
 ```powershell
 # Windows PowerShell
-git clone https://github.com/yuhuan-dev/antigravity-usage-monitor.git "$env:USERPROFILE\.gemini\config\plugins\usage-monitor"
+git clone https://github.com/tiantutu798-bit/Gemini.git "$env:USERPROFILE\.gemini\config\plugins\usage-monitor"
 ```
 
 ```bash
 # macOS / Linux
-git clone https://github.com/yuhuan-dev/antigravity-usage-monitor.git ~/.gemini/config/plugins/usage-monitor
+git clone https://github.com/tiantutu798-bit/Gemini.git ~/.gemini/config/plugins/usage-monitor
 ```
 
 也可以直接在 Antigravity 对话中执行：
 
 ```text
-把 https://github.com/yuhuan-dev/antigravity-usage-monitor 克隆到 ~/.gemini/config/plugins/usage-monitor 并启用插件
+把 https://github.com/tiantutu798-bit/Gemini 克隆到 ~/.gemini/config/plugins/usage-monitor 并启用插件
 ```
 
-### 方式二：下载 Release 压缩包
+### 方式二：下载源码压缩包
 
-下载 [`usage-monitor.zip`](https://github.com/yuhuan-dev/antigravity-usage-monitor/releases/latest/download/usage-monitor.zip)，解压到 `~/.gemini/config/plugins/` 下并保持文件夹名为 `usage-monitor`。
+下载 [`main.zip`](https://github.com/tiantutu798-bit/Gemini/archive/refs/heads/main.zip)，解压到 `~/.gemini/config/plugins/` 下并将解压后的文件夹名重命名为 `usage-monitor`（完整路径为 `~/.gemini/config/plugins/usage-monitor`）。
 
 <details>
 <summary>Windows PowerShell 下载与解压命令</summary>
@@ -145,8 +159,10 @@ git clone https://github.com/yuhuan-dev/antigravity-usage-monitor.git ~/.gemini/
 ```powershell
 $pluginsDir = "$env:USERPROFILE\.gemini\config\plugins"
 New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
-Invoke-WebRequest -Uri "https://github.com/yuhuan-dev/antigravity-usage-monitor/releases/latest/download/usage-monitor.zip" -OutFile "$env:TEMP\usage-monitor.zip"
-Expand-Archive -Path "$env:TEMP\usage-monitor.zip" -DestinationPath $pluginsDir -Force
+Invoke-WebRequest -Uri "https://github.com/tiantutu798-bit/Gemini/archive/refs/heads/main.zip" -OutFile "$env:TEMP\Gemini-main.zip"
+Expand-Archive -Path "$env:TEMP\Gemini-main.zip" -DestinationPath $pluginsDir -Force
+Remove-Item -Path "$pluginsDir\usage-monitor" -Recurse -Force -ErrorAction SilentlyContinue
+Rename-Item -Path "$pluginsDir\Gemini-main" -NewName "usage-monitor"
 ```
 
 </details>
@@ -191,7 +207,7 @@ ssh -L 8787:127.0.0.1:8787 user@your-server
 <summary>界面与字段配置（挂载方式、胶囊槽位、Token 组合格式、模型命名与上下文限制）</summary>
 
 - **挂载模式与浮窗宽度**：支持「双栖挂载（顶部栏 + 侧边栏）」、「输入框挂载」与「仅侧边栏」；悬浮窗默认使用「自动适配」（宽表格下在窗口范围内自动加宽），也可设置为 `440~1080 px` 固定宽度。
-- **胶囊槽位**：支持在 1 至 5 个指标间增删与排序（默认显示输出速度、首字延迟与上下文占用），并可单独开关运行中会话指示器。
+- **胶囊槽位**：支持在 1 至 6 个指标间增删与排序（支持 Gemini / Claude & GPT / Argon 额度环与输出速度、首字延迟、上下文占用等指标），并可单独开关运行中会话指示器。
 - **调用明细与 Token 组合**：在「界面编排 → 调用明细字段」可分别开关主/子代理标识、对话轮次导轨（默认关闭）与输出速度多色分级（默认关闭）；Token 列默认显示 `上下文 / 思考 / 正文`，可切换至 `输入 / 输出 / 缓存` 预设（悬停显示美元分项），或使用 `context:new:cache`、`in:out:cache` 等自定义格式字符串。
 - **模型命名格式**：支持精简代号（如 `argon-4-high`）、原始模型 ID 与去前缀原始 ID（去掉 `gemini-` / `claude-` / `gpt-` 前缀并保留 `·压缩` 标记）三档；Orchestrator 系列支持单独设置。
 - **按模型设置上下文窗口**：在「其他 → 模型上下文设置」中为同一模型的各推理档位设置统一上限或「跟随宿主设置」。App / IDE 会在启动后作用于后续请求；CLI 通过 `AGY_CLI_AUTO_COMPACT_OVERRIDE` 控制。
@@ -235,18 +251,9 @@ npm run build
 npm test
 ```
 
-## 参与贡献与开源协议
+## 参与贡献、鸣谢与开源协议
 
 欢迎提交 Issue 或 Pull Request。若修改了 `sidecars/panel/src/` 下的前端源码，请先执行 `npm run build` 重新生成产物，并确保 `npm test` 全部通过。
 
-本项目基于 [GNU General Public License v3.0](LICENSE) 开源。
-
-## Star 趋势
-
-<a href="https://www.star-history.com/#yuhuan-dev/antigravity-usage-monitor&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=yuhuan-dev/antigravity-usage-monitor&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=yuhuan-dev/antigravity-usage-monitor&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=yuhuan-dev/antigravity-usage-monitor&type=Date" />
-  </picture>
-</a>
+- 上游原项目：[`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor)（`Copyright (C) 2026 yuhuan-dev`）
+- 本衍生修改版及全部新增/改动部分同样严格遵守 [GNU General Public License v3.0 only (GPL-3.0-only)](LICENSE) 开源协议。

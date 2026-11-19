@@ -57,7 +57,19 @@
 }
 
 :host(.wm-capsule-host[data-dock="composer"]) .wm-capsule-btn {
-  padding: 0 8px;
+  padding: 0 7px;
+  gap: 5px;
+}
+
+:host(.wm-capsule-host[data-dock="composer"]) .wm-ring-svg {
+  width: 13px;
+  height: 13px;
+}
+
+:host(.wm-capsule-host[data-dock="composer"]) .wm-ctx-seg {
+  width: auto;
+  min-width: 46px;
+  gap: 4px;
 }
 
 :host(.wm-capsule-host[data-dock="ide-titlebar"]) {
@@ -254,7 +266,7 @@
 
 .wm-ring-fill {
   fill: none;
-  stroke: var(--accent-primary);
+  stroke: var(--ring-color, var(--accent-primary));
   stroke-width: 2;
   stroke-linecap: round;
   transition:
@@ -263,11 +275,11 @@
 }
 
 .wm-ring-fill.tone-warn {
-  stroke: var(--metric-warn);
+  stroke: var(--ring-color, var(--metric-warn));
 }
 
 .wm-ring-fill.tone-danger {
-  stroke: var(--metric-danger);
+  stroke: var(--ring-color, var(--metric-danger));
 }
 
 .wm-ctx-pct {
@@ -324,14 +336,45 @@
   font-weight: 500;
 }
 
-/* 配额槽位（固定预占宽度 52px 居中对齐，完整容纳 余 100% / 余 --% 且在任意槽位对称） */
+/* 配额槽位：自适应宽度防止长标签与 100% 发生省略号截断 */
 .wm-seg-quota {
-  width: 52px;
+  width: auto;
+  min-width: 48px;
 }
 
 .wm-quota-text {
-  width: 52px;
+  width: auto;
+  min-width: 48px;
+  overflow: visible;
+  text-overflow: clip;
   text-align: center;
+}
+
+.wm-seg-quota-ring {
+  width: auto;
+  min-width: 0;
+  gap: 3px;
+}
+
+.wm-slot-tag {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 450;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 1px;
+}
+
+.wm-quota-pct {
+  width: auto;
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 /* 缓存命中率槽位（固定预占宽度 44px 居中对齐） */
@@ -468,13 +511,15 @@
   display: none !important;
 }
 
-/* 四级响应式迟滞折叠（基于可见槽位次序 data-vis-rank 1..5 与分隔线次序 data-sep-for-rank 动态折叠） */
+/* 四级响应式迟滞折叠（基于可见槽位次序 data-vis-rank 1..6 与分隔线次序 data-sep-for-rank 动态折叠） */
 :host(.wm-capsule-host[data-layout="compact"]) .wm-cap-slot[data-vis-rank="3"],
 :host(.wm-capsule-host[data-layout="compact"]) .wm-cap-slot[data-vis-rank="4"],
 :host(.wm-capsule-host[data-layout="compact"]) .wm-cap-slot[data-vis-rank="5"],
+:host(.wm-capsule-host[data-layout="compact"]) .wm-cap-slot[data-vis-rank="6"],
 :host(.wm-capsule-host[data-layout="compact"]) .wm-sep[data-sep-for-rank="3"],
 :host(.wm-capsule-host[data-layout="compact"]) .wm-sep[data-sep-for-rank="4"],
-:host(.wm-capsule-host[data-layout="compact"]) .wm-sep[data-sep-for-rank="5"] {
+:host(.wm-capsule-host[data-layout="compact"]) .wm-sep[data-sep-for-rank="5"],
+:host(.wm-capsule-host[data-layout="compact"]) .wm-sep[data-sep-for-rank="6"] {
   display: none !important;
 }
 
@@ -482,10 +527,12 @@
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-cap-slot[data-vis-rank="3"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-cap-slot[data-vis-rank="4"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-cap-slot[data-vis-rank="5"],
+:host(.wm-capsule-host[data-layout="minimal"]) .wm-cap-slot[data-vis-rank="6"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-sep[data-sep-for-rank="2"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-sep[data-sep-for-rank="3"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-sep[data-sep-for-rank="4"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-sep[data-sep-for-rank="5"],
+:host(.wm-capsule-host[data-layout="minimal"]) .wm-sep[data-sep-for-rank="6"],
 :host(.wm-capsule-host[data-layout="minimal"]) .wm-multi-label {
   display: none !important;
 }
@@ -499,11 +546,15 @@
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="3"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="4"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="5"],
+:host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="6"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-sep[data-sep-for-rank="2"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-sep[data-sep-for-rank="3"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-sep[data-sep-for-rank="4"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-sep[data-sep-for-rank="5"],
+:host(.wm-capsule-host[data-layout="ring-only"]) .wm-sep[data-sep-for-rank="6"],
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="1"] .wm-ctx-pct,
+:host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="1"] .wm-slot-tag,
+:host(.wm-capsule-host[data-layout="ring-only"]) .wm-cap-slot[data-vis-rank="1"] .wm-quota-pct,
 :host(.wm-capsule-host[data-layout="ring-only"]) .wm-multi-label {
   display: none !important;
 }

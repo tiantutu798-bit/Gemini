@@ -1080,10 +1080,10 @@ test('preferences schema defaults match pre-refactor UI, migrate legacy none slo
     [...hDefault.normalizeTopbarCapsuleSlots(['context', 'none', 'quota_auto'])],
     ['context', 'quota_auto']
   );
-  // Up to 5 unique items supported, duplicates stripped, empty falls back to ['context']
+  // Up to 6 unique items supported, duplicates stripped, empty falls back to ['context']
   assert.deepEqual(
-    [...hDefault.normalizeTopbarCapsuleSlots(['tps', 'ttft', 'cost', 'cache_hit', 'session_tokens', 'gemini_5h'])],
-    ['tps', 'ttft', 'cost', 'cache_hit', 'session_tokens']
+    [...hDefault.normalizeTopbarCapsuleSlots(['tps', 'ttft', 'cost', 'cache_hit', 'session_tokens', 'argon_weekly', 'gemini_5h'])],
+    ['tps', 'ttft', 'cost', 'cache_hit', 'session_tokens', 'argon_weekly']
   );
   assert.deepEqual([...hDefault.normalizeTopbarCapsuleSlots(['none', 'none', 'none'])], ['context']);
 

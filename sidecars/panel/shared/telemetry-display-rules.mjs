@@ -97,7 +97,7 @@ export function formatCompactCapsuleTtft(ttftSec) {
 }
 
 /**
- * 解析胶囊指定配额槽位（`quota_auto` / `gemini_5h` / `gemini_weekly` / `claude_5h` / `claude_weekly`）的整数剩余百分比。
+ * 解析胶囊指定配额槽位（`quota_auto` / `gemini_5h` / `gemini_weekly` / `claude_5h` / `claude_weekly` / `argon_weekly`）的整数剩余百分比。
  *
  * @param {object|null|undefined} quotas
  * @param {string} slotKey
@@ -130,6 +130,17 @@ export function resolveCapsuleQuotaSlotPct(quotas, slotKey) {
     }
     if (!candidates.length) return null;
     return Math.max(0, Math.min(100, Math.round(Math.min(...candidates))));
+  }
+
+  if (slotKey === 'argon_weekly') {
+    const argonPool =
+      pools.find((p) => p?.poolKey === 'Argon') ||
+      pools.find((p) => /\bargon\b/i.test(String(p?.poolKey || p?.poolLabel || '')));
+    const cand = argonPool?.weeklyRemainingPct ?? argonPool?.remainingPct;
+    if (cand != null && Number.isFinite(Number(cand))) {
+      return Math.max(0, Math.min(100, Math.round(Number(cand))));
+    }
+    return null;
   }
 
   const isClaude = slotKey.startsWith('claude_');

@@ -11,35 +11,126 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20npm%20%E4%BE%9D%E8%B5%96-10b981?style=flat-square)](#本地开发)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=flat-square)](#客户端支持)
 
-[English](README.md) · 简体中文
+[English](README.md) · **简体中文**
 
-[上游来源与改动](#上游来源与修改说明) · [功能](#功能) · [截图](#截图) · [客户端支持](#客户端支持) · [安装](#安装) · [使用方式](#使用方式) · [开发](#本地开发)
-
-<br />
-
-<img src="assets/preview.png" alt="Antigravity Usage Monitor 界面预览" width="100%" />
+[**✨ 核心创新（置顶）**](#核心创新亮点置顶) · [三张实拍图](#1-三张核心实拍图) · [输入框 6 槽额度栏](#2-输入框底部-6-槽常驻额度栏) · [蓝→橙黄→红渐变](#3-剩余量优先--蓝橙黄红连续渐变) · [安装](#安装) · [功能](#功能) · [开发](#本地开发)
 
 <br />
 
-[下载代码压缩包 (`main.zip`)](https://github.com/tiantutu798-bit/Gemini/archive/refs/heads/main.zip) · [查看上游原仓库 (`yuhuan-dev/antigravity-usage-monitor`)](https://github.com/yuhuan-dev/antigravity-usage-monitor)
+<img src="assets/composer-quota-bar.png" alt="输入框底部 6 槽常驻额度栏（含蓝→橙黄→红进度环）" width="100%" />
+
+<br />
+
+[下载源码压缩包 (`main.zip`)](https://github.com/tiantutu798-bit/Gemini/archive/refs/heads/main.zip) · [查看上游原仓库 (`yuhuan-dev/antigravity-usage-monitor`)](https://github.com/yuhuan-dev/antigravity-usage-monitor)
 
 </div>
 
 ---
 
-## 上游来源与修改说明
+<a id="核心创新亮点置顶"></a>
+
+## ✨ 核心创新亮点（置顶）
 
 > [!IMPORTANT]
-> 本项目是基于 [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor)（`v1.5.1`）的 **GNU GPL v3.0 only 衍生修改版**（修改日期：2026-11）。项目完整保留原作者 `yuhuan-dev` 的版权声明、完整 Git 提交历史与 GPL-3.0 开源协议，并在此基础上持续开放源码。
+> 本项目是基于 [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor)（`v1.5.1`）的 **GNU GPL v3.0 only 衍生修改版**（修改日期：2026-11）。项目完整保留原作者 `yuhuan-dev` 的版权声明、完整 Git 提交历史与 GPL-3.0 开源协议，并在此基础上开放以下核心交互与视觉创新。
 
-相较上游原版，本定制版主要新增与调整以下功能：
+<a id="1-三张核心实拍图"></a>
 
-- **输入框常驻 6 槽额度栏与蓝→红圆环**：胶囊槽位上限从 `5` 扩充至 `6`，新增 **Argon 周限 (`argon_weekly` / `A周`)** 指标；输入框 `G周 / G5h / C周 / C5h / A周` 均在百分比左侧渲染与上下文指示环一致的迷你圆环并解决 `52px` 定宽数字截断问题（支持 `G周 ○ XX% | G5h ○ XX% | C周 ○ XX% | C5h ○ XX% | A周 ○ XX% | ○ XX%`）。
-- **可用额度对齐官方 Usage 顺序**：模型池展示顺序调整为 `Gemini → Claude & GPT → Gemini 4 Argon → Carbon`，且每组内部改为 **`周限` 在上、`5h` 在下**。
-- **剩余量进度条与配色 B 连续渐变**：进度条宽度改为直观展示**剩余配额百分比**，右侧文案精简为仅显示剩余百分比（`{reset} · 剩余 {rem}%`）；颜色由分段跳变升级为 **纯蓝 `#3b82f6` → 橙黄 `#f59e0b` → 警示红 `#ef4444`** 连续插值渐变，并同步作用于输入框 5 个额度小圆环（上下文占用圆环保留原逻辑）。
-- **`Orchestrator (Neon)` 识别修复**：在 `pricing-catalog.json`、后端计费匹配与前端格式化中补齐 `MODEL_PLACEHOLDER_M537`（`gemini-pro-orchestrator-neon`），修复此前将该模型误归类为 `orchestrator-carbon` 的问题。
-- **macOS 2.33.0+ 冷启动外部终端自动自愈**：新增 `autoRelaunchDebug` 受保护冷启动机制与 [relaunch-antigravity-debug.command](sidecars/panel/backend/desktop-launcher-config.mjs) 生成器；当 bare 启动缺少 `--remote-debugging-port` 时自动打开系统 `Terminal` 执行带参重启并校验 `window-bridge-lease.json` 真正挂载成功后再等待 3 秒自动关闭自身窗口。
-- **中文清单本地化**：[plugin.json](plugin.json) 显示名调整为「用量与额度监控」。
+### 1. 三张核心实拍图
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-quota-bar.png" alt="输入框常驻 6 槽额度栏实拍" width="100%" />
+      <br />
+      <b>① 输入框常驻 6 槽额度栏（实时多色圆环）</b>
+      <br />
+      <sub>无需切到 Usage 设置页：一排直观呈现 <code>G周 72%</code> | <code>G5h 10%</code> | <code>C周 49%</code> | <code>C5h 100%</code> | <code>A周 90%</code> | <code>上下文 67%</code>，余量越少圆环越红，一眼识别瓶颈</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-live-sessions.png" alt="点击左侧指示器联动实时运行会话浮窗" width="100%" />
+      <br />
+      <b>② 实时运行会话浮窗联动（底栏常驻不遮挡）</b>
+      <br />
+      <sub>悬停或点击左侧「1 运行中」在输入框正上方展开当前生成速度（<code>18.9 t/s</code>）、占比与实时推理阶段，底部 6 槽额度圆环始终可见</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-hover-gradient.jpg" alt="悬停速览卡与底部圆环颜色和排序完全同步" width="82%" />
+      <br />
+      <b>③ 悬停速览卡 · 官方排序 + 剩余量条 + 双端同步渐变</b>
+      <br />
+      <sub>上方「可用额度」卡片严格对齐官方 Usage 顺序（Gemini 周/5h → Claude & GPT 周/5h → Argon 周），进度条长度与颜色和下方 5 个小圆环完全一致</sub>
+    </td>
+  </tr>
+</table>
+
+<a id="2-输入框底部-6-槽常驻额度栏"></a>
+
+### 2. 输入框底部 6 槽常驻额度栏
+
+相比上游原版只支持顶部/输入栏最多 5 个纯文字指标，本版本针对高频多模型切换场景重构了输入框胶囊：
+
+- **5 → 6 槽位扩容 + `Argon` 周限槽位**：突破原版 `MAX_TOPBAR_SLOTS = 5` 上限至 **`6` 项**，新增 **`argon_weekly`（`A周`）**，可将官方 5 路模型限额与当前对话上下文全部放进同一行：`G周 | G5h | C周 | C5h | A周 | 上下文`。
+- **迷你圆形进度环 + 解除 `52px` 截断**：为 `G周`、`G5h`、`C周`、`C5h`、`A周` 在百分比左侧嵌入与上下文指示器同款的 SVG 圆形进度环，并移除原版 `.wm-seg-quota` 的 `width: 52px` 裁切限制，彻底消除 `100%` 变成 `1...` 的省略号问题。
+- **贴合输入框工作流**：直接停靠在底部输入框工具栏左侧，既不挤占顶部标题栏空间，也不用频繁跳出对话去翻看 Usage 面板。
+
+<details>
+<summary>同款输入框 6 槽配置参考（在「偏好设置 → 界面编排」中可直接勾选，或对应 settings.json 字段）</summary>
+
+```json
+{
+  "windowMountMode": "composer",
+  "enableWindowOverlay": true,
+  "topbarCapsuleSlots": [
+    "gemini_weekly",
+    "gemini_5h",
+    "claude_weekly",
+    "claude_5h",
+    "argon_weekly",
+    "context"
+  ]
+}
+```
+
+</details>
+
+<a id="3-剩余量优先--蓝橙黄红连续渐变"></a>
+
+### 3. 剩余量优先 + 蓝→橙黄→红连续渐变
+
+为了在对话过程中不用看文字也能凭余光感知“还能用多少”，我们对进度条与色带逻辑做了整体重设计：
+
+- **进度条长度直接表示「剩余量」**：
+  - 上游原版进度条绑定的是“已用比例”（余 100% 时几乎是空条），本版本在 [`QuotaPoolsWidget.js`](sidecars/panel/src/components/widgets/QuotaPoolsWidget.js) 中改绑 `remainingPct`：**剩余 100% 即满格，剩余越少条越短**。
+  - 右侧文字同步精简为只展示剩余百分比（`{reset} · 剩余 {rem}%`），去掉冗余的 `已用 ...`，与官方 Usage 面板及圆环百分比口径一致。
+- **连续 RGB 插值渐变（告别生硬跳变）**：
+  - 共享核心 [`resolveQuotaRemainingColor()`](sidecars/panel/src/core/formatters.js) 按剩余百分比在 5 个锚点之间连续线性插值，并同步驱动卡片横向进度条（`--fill-bg`）与输入框 5 个额度小圆环（`--ring-color`）：
+
+| 剩余配额 | 对应十六进制色值 | 视觉含义 |
+| :---: | :---: | :--- |
+| **100%** | `#3b82f6` | 纯正主题蓝：额度满格充裕（对应上方 `C5h ○ 100%`） |
+| **75%** | `#4e8ff7` | 柔和亮蓝：消耗初期，状态健康（对应上方 `G周 ○ 72%`、`A周 ○ 90%`） |
+| **50%** | `#f59e0b` | 琥珀橙黄：已消耗过半，提醒留意节奏（对应上方 `C周 ○ 49%`） |
+| **25%** | `#f97316` | 鲜明橙红：余量偏低，建议关注重置倒计时 |
+| **0%** | `#ef4444` | 警示正红：即将见底，需要换池或等待重置（对应上方 `G5h ○ 10%`） |
+
+- **上下文圆环独立清晰**：最右侧的上下文占用圆环（如 `○ 67%`）保留原版独立色阶逻辑，与左侧 5 个模型额度环互不混淆。
+
+### 相对上游原版的完整改进清单
+
+| 维度 | 上游原版 (`yuhuan-dev/antigravity-usage-monitor`) | 本定制增强版 (`tiantutu798-bit/Gemini`) |
+| :--- | :--- | :--- |
+| **底部输入框槽位** | 最多 5 项，缺 `argon_weekly`，纯文字且长项易触发 `52px` 截断 | **扩容至 6 项**，新增 `A周`，5 个额度统一配迷你圆环且永不截断 |
+| **可用额度排序** | `Gemini → Argon → Claude & GPT`，组内 `5h` 在上、`周限` 在下 | **对齐官方 Usage**：`Gemini → Claude & GPT → Argon`，组内 **`周限` 在上、`5h` 在下** |
+| **进度条与右侧文案** | 进度条按「已用比例」递增，文案同时显示已用与剩余 | 进度条直接展示 **「剩余比例」**，右侧精简为 **`剩余 XX.X%`** |
+| **色彩预警机制** | 固定蓝 + 70%/85% 两档硬切换；底部文字圆环样式不统一 | **蓝 (`#3b82f6`) → 橙黄 (`#f59e0b`) → 红 (`#ef4444`) 连续渐变**，横条与 5 个圆环双端实时同步 |
+| **模型归类准确度** | `MODEL_PLACEHOLDER_M537` 易被误归类为 `orchestrator-carbon` | 补全 [`pricing-catalog.json`](pricing-catalog.json) 与识别规则，准确识别为 **`Orchestrator (Neon)`** |
+| **macOS 2.33.0+ 启动** | 裸启动缺失 `--remote-debugging-port` 时需手动重拉 | 新增受保护的 `autoRelaunchDebug`，通过外部终端重拉并 **确认额度栏挂载成功后再等 3 秒自动关窗** |
+| **插件清单名称** | 英文默认名称 | [`plugin.json`](plugin.json) 本地化显示名为「**用量与额度监控**」 |
 
 ---
 
@@ -60,9 +151,18 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 
 ## 截图
 
-### IDE 与 CLI
+### 桌面端总览与更多场景
 
 <table>
+  <tr>
+    <td align="center">
+      <img src="assets/preview.png" alt="Antigravity Usage Monitor 桌面端胶囊与弹窗总览" width="100%" />
+      <br />
+      <b>Antigravity 2.0 桌面端总览</b>
+      <br />
+      <sub>顶部/输入框悬浮胶囊与点击展开的完整四标签监控弹窗</sub>
+    </td>
+  </tr>
   <tr>
     <td align="center">
       <img src="assets/ide-preview.png" alt="Antigravity IDE 顶栏胶囊与悬浮速览" width="100%" />

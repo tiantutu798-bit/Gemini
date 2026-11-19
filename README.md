@@ -11,13 +11,13 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20npm%20packages-10b981?style=flat-square)](#local-development)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=flat-square)](#client-support)
 
-English · [简体中文](README.zh-CN.md)
+**English** · [简体中文完整介绍 (README.zh-CN.md)](README.zh-CN.md)
 
-[Upstream Attribution](#upstream-attribution--key-modifications) · [Features](#features) · [Screenshots](#screenshots) · [Client Support](#client-support) · [Installation](#installation) · [Usage](#usage) · [Development](#local-development)
+[**✨ Key Innovations (Pinned)**](#highlighted-innovations-pinned) · [3 Core Screenshots](#1-live-showcase-3-core-screenshots) · [6-Slot Composer Bar](#2-permanent-6-slot-composer-quota-bar) · [Remaining Gradient](#3-remaining-first-bars--continuous-blueamberred-gradient) · [Installation](#installation) · [Features](#features) · [Development](#local-development)
 
 <br />
 
-<img src="assets/preview.png" alt="Antigravity Usage Monitor Preview" width="100%" />
+<img src="assets/composer-quota-bar.png" alt="Permanent 6-Slot Composer Quota Bar with Blue-Amber-Red Progress Rings" width="100%" />
 
 <br />
 
@@ -27,19 +27,101 @@ English · [简体中文](README.zh-CN.md)
 
 ---
 
-## Upstream Attribution & Key Modifications
+<a id="highlighted-innovations-pinned"></a>
+
+## ✨ Highlighted Innovations (Pinned)
 
 > [!IMPORTANT]
-> This repository is a **GNU GPL v3.0-only derivative fork** of [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor) (`v1.5.1`), modified on 2026-11. All upstream copyright notices, full Git commit history, and GPL-3.0-only licensing obligations are preserved intact.
+> This repository is a **GNU GPL v3.0-only derivative fork** of [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor) (`v1.5.1`), modified on 2026-11. All upstream copyright notices, full Git commit history, and GPL-3.0-only licensing terms are preserved intact while introducing the core UX and visual upgrades highlighted below.
 
-Key enhancements added on top of upstream:
+### 1. Live Showcase (3 Core Screenshots)
 
-- **6-Slot Composer Bar with Remaining Progress Rings**: Raised maximum capsule slots from `5` to `6`, added **Argon Weekly (`argon_weekly`)**, mounted circular progress rings beside all 5 quota tags (`G周`/`GWk`, `G5h`, `C周`/`CWk`, `C5h`, `A周`/`AWk`), and removed the `52px` quota text truncation limit.
-- **Official Usage Card Ordering**: Ordered quota pools as `Gemini → Claude & GPT → Gemini 4 Argon → Carbon`, with **Weekly on top and 5h below** inside every pool.
-- **Remaining-Based Bars & Continuous Blue-Amber-Red Gradient**: Progress bars track **remaining quota %** and right-hand meta text shows remaining only (`{reset} · {rem}% left`). Colors interpolate continuously from pure blue (`#3b82f6` at `100%`) through amber/orange (`#f59e0b` / `#f97316`) to red (`#ef4444` at `0%`) across both quota bars and the 5 composer quota rings (leaving the context ring untouched).
-- **Orchestrator (Neon) Attribution Fix**: Added `MODEL_PLACEHOLDER_M537` (`gemini-pro-orchestrator-neon`) to [`pricing-catalog.json`](pricing-catalog.json), backend pricing rules, and frontend formatters so Neon usage is no longer mislabeled as `orchestrator-carbon`.
-- **macOS 2.33.0+ Cold-Start Terminal Self-Healing**: Added guarded `autoRelaunchDebug` launching macOS `Terminal` to relaunch Antigravity with `--remote-debugging-port=0`, verify live overlay mount via `window-bridge-lease.json`, wait 3 seconds after confirmation, and close only that single-tab Terminal window.
-- **Localized Manifest Display Name**: Updated [`plugin.json`](plugin.json) `displayName` to Simplified Chinese (`用量与额度监控`).
+<table>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-quota-bar.png" alt="Permanent 6-Slot Composer Quota Bar" width="100%" />
+      <br />
+      <b>① Permanent 6-Slot Composer Quota Bar (Synced Color Rings)</b>
+      <br />
+      <sub>Docked inside the chat input bar with zero tab-switching: displays <code>G周 72%</code> | <code>G5h 10%</code> | <code>C周 49%</code> | <code>C5h 100%</code> | <code>A周 90%</code> | <code>Context 67%</code> in one glance</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-live-sessions.png" alt="Live Running Session Popover Linked with Composer Bar" width="100%" />
+      <br />
+      <b>② Live Running-Sessions HUD Above the Composer Bar</b>
+      <br />
+      <sub>Hovering/clicking the left active badge opens live generation throughput (<code>18.9 t/s</code>), phase, and elapsed time directly above the composer without obscuring the 6 quota slots</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="assets/composer-hover-gradient.jpg" alt="Hover Quota Card Aligned with Official Usage Order and Gradient Rings" width="82%" />
+      <br />
+      <b>③ Hover Overview Card · Official Ordering, Remaining Bars & Synced Gradient</b>
+      <br />
+      <sub>Matches Official Usage ordering (Gemini Weekly/5h → Claude & GPT Weekly/5h → Argon Weekly) with remaining-based bar lengths and 1:1 synced blue→amber→red colors across bars and composer rings</sub>
+    </td>
+  </tr>
+</table>
+
+### 2. Permanent 6-Slot Composer Quota Bar
+
+Unlike upstream (which caps slots at 5 text-only items and lacks an `Argon Weekly` slot), this edition redesigns the composer bar for multi-pool workflows:
+
+- **Expanded 5 → 6 Slots + `argon_weekly`**: Raised `MAX_TOPBAR_SLOTS` from `5` to **`6`** and added **`argon_weekly` (`A周` / `AWk`)**, fitting all 5 official quota windows plus live context usage in one composer row: `G周 | G5h | C周 | C5h | A周 | Context`.
+- **Circular Quota Rings + No `52px` Clipping**: Embedded circular SVG progress rings matching the context indicator on all 5 quota tags and removed the hardcoded `52px` quota label width constraint so `100%` never truncates to ellipses.
+- **Zero Context-Switching**: Stays permanently anchored left of the composer mode control without crowding the window titlebar or opening the Usage settings page.
+
+<details>
+<summary>Recommended 6-slot configuration (UI: Preferences → Structure, or settings.json)</summary>
+
+```json
+{
+  "windowMountMode": "composer",
+  "enableWindowOverlay": true,
+  "topbarCapsuleSlots": [
+    "gemini_weekly",
+    "gemini_5h",
+    "claude_weekly",
+    "claude_5h",
+    "argon_weekly",
+    "context"
+  ]
+}
+```
+
+</details>
+
+### 3. Remaining-First Bars & Continuous Blue–Amber–Red Gradient
+
+To make remaining headroom readable in peripheral vision at a glance:
+
+- **Bars Track Remaining % (Not Used %)**: [`QuotaPoolsWidget.js`](sidecars/panel/src/components/widgets/QuotaPoolsWidget.js) binds `--fill-w` directly to `remainingPct` (**100% remaining = full bar, 0% = empty**), and right-hand text displays remaining percentage only (`{reset} · {rem}% left`), matching the numeric rings below.
+- **Continuous 5-Stop RGB Gradient**: Shared helper [`resolveQuotaRemainingColor()`](sidecars/panel/src/core/formatters.js) linearly interpolates across 5 color anchors and drives both `--fill-bg` bars and `--ring-color` composer rings identically:
+
+| Remaining Quota | Hex Color | Visual Signal |
+| :---: | :---: | :--- |
+| **100%** | `#3b82f6` | Pure Primary Blue — Full headroom (e.g., `C5h ○ 100%`) |
+| **75%** | `#4e8ff7` | Soft Blue — Early usage, healthy (e.g., `G周 ○ 72%`, `A周 ○ 90%`) |
+| **50%** | `#f59e0b` | Warm Amber — Roughly half used (e.g., `C周 ○ 49%`) |
+| **25%** | `#f97316` | Vivid Orange — Running low; check reset countdown |
+| **0%** | `#ef4444` | Alert Red — Critically low headroom (e.g., `G5h ○ 10%`) |
+
+- **Independent Context Ring**: The 6th context-usage ring (`○ 67%`) keeps its own semantic styling so context fill is never confused with quota headroom.
+
+### Full Diff Summary vs. Upstream
+
+| Area | Upstream (`yuhuan-dev/antigravity-usage-monitor`) | This Edition (`tiantutu798-bit/Gemini`) |
+| :--- | :--- | :--- |
+| **Composer Slots** | Up to 5 slots, no `argon_weekly`, fixed `52px` width clipping | **6 slots**, adds `argon_weekly`, SVG progress rings on all 5 quotas, no truncation |
+| **Quota Card Order** | `Gemini → Argon → Claude & GPT`; `5h` above `Weekly` | **Matches Official Usage**: `Gemini → Claude & GPT → Argon`; **`Weekly` above `5h`** |
+| **Bars & Meta Text** | Bar fills by `used %`, text shows both used and remaining | Bar fills by **`remaining %`**, text shows **remaining only** |
+| **Color System** | Hard thresholds at 70%/85%; static ring styling | **Continuous blue (`#3b82f6`) → amber (`#f59e0b`) → red (`#ef4444`)** synced across bars and 5 composer rings |
+| **Model Attribution** | `MODEL_PLACEHOLDER_M537` could fall back to `orchestrator-carbon` | Added [`pricing-catalog.json`](pricing-catalog.json) & formatter rules for **`Orchestrator (Neon)`** |
+| **macOS 2.33.0+ Launch** | Manual relaunch needed if `--remote-debugging-port` is absent | Guarded `autoRelaunchDebug` opens macOS `Terminal`, verifies live bridge mount, waits 3s, and closes itself |
+| **Manifest Name** | Default English manifest name | Localized [`plugin.json`](plugin.json) `displayName` (`用量与额度监控`) |
 
 ---
 
@@ -60,9 +142,18 @@ Key enhancements added on top of upstream:
 
 ## Screenshots
 
-### IDE & CLI
+### Desktop Overview & Additional Environments
 
 <table>
+  <tr>
+    <td align="center">
+      <img src="assets/preview.png" alt="Antigravity Usage Monitor Desktop Overview and Popover" width="100%" />
+      <br />
+      <b>Antigravity 2.0 Desktop Overview</b>
+      <br />
+      <sub>Titlebar/composer capsule and full 4-tab monitoring popover</sub>
+    </td>
+  </tr>
   <tr>
     <td align="center">
       <img src="assets/ide-preview.png" alt="Antigravity IDE Titlebar Capsule and Hover Overview" width="100%" />

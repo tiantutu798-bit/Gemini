@@ -13056,14 +13056,11 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
 
   const out = [];
 
-  // Argon / Carbon 的 5h 窗口与 Gemini 5h 共享同一高频池 (G5h)
-  const g5hCalls = gStat.calls + aStat.calls + cbStat.calls;
-  const g5hCost = gStat.costUsd + aStat.costUsd + cbStat.costUsd;
-  const g5hTokens = gStat.tokens + aStat.tokens + cbStat.tokens;
-  if (g5hCalls > 0) {
+  // Gemini 5h 与周限池 (G5h / G周)：仅当本轮实际调用了 Gemini 池模型时才计算并显示
+  if (gStat.calls > 0) {
     const dropG5h = estimateCycleDropPct(
-      g5hCost,
-      g5hTokens,
+      gStat.costUsd,
+      gStat.tokens,
       geminiPool,
       'cycle5h',
       'usedPct',
@@ -13076,10 +13073,7 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       dropPct: dropG5h,
       text: formatDropPctText('G5h', dropG5h),
     });
-  }
 
-  // Gemini 周限池 (G周)
-  if (gStat.calls > 0) {
     const dropGWk = estimateCycleDropPct(
       gStat.costUsd,
       gStat.tokens,
@@ -13434,28 +13428,63 @@ function extractDomResponseFiberMeta(respEl) {
 
     if (fiberKey) {
       let f = curEl[fiberKey];
-      for (let up = 0; up < 12 && f; up += 1) {
+      let matchedSteps = null;
+      let isLatestContainer = false;
+      let explicitTurnRunning = false;
+      let trajectoryRunning = false;
+
+      for (let up = 0; up < 14 && f; up += 1) {
         const mp = f.memoizedProps;
-        const steps = mp?.container?.steps;
-        if (Array.isArray(steps) && steps.length > 0) {
-          let minMs = Infinity;
-          let maxMs = 0;
-          for (let i = 0; i < steps.length; i += 1) {
-            const ms = parseProtoTimestampMs(steps[i]?.metadata?.createdAt);
-            if (ms > 0) {
-              if (ms < minMs) minMs = ms;
-              if (ms > maxMs) maxMs = ms;
+        if (mp && typeof mp === 'object') {
+          if (!matchedSteps && Array.isArray(mp.container?.steps) && mp.container.steps.length > 0) {
+            matchedSteps = mp.container.steps;
+            isLatestContainer = Boolean(mp.container.isLatest);
+            if (typeof mp.isRunning === 'boolean' && !('trajectorySteps' in mp)) {
+              explicitTurnRunning = mp.isRunning;
             }
           }
-          return {
-            hasFiber: true,
-            isRunning: Boolean(mp.isRunning),
-            minMs: Number.isFinite(minMs) ? minMs : 0,
-            maxMs,
-            stepCount: steps.length,
-          };
+          if (typeof mp.isRunning === 'boolean' && ('trajectorySteps' in mp || 'isSubtrajectory' in mp)) {
+            trajectoryRunning = mp.isRunning;
+          } else if (typeof mp.isRunning === 'boolean' && matchedSteps && up <= 4) {
+            explicitTurnRunning = mp.isRunning;
+          }
         }
         f = f.return;
+      }
+
+      if (matchedSteps) {
+        let minMs = Infinity;
+        let maxMs = 0;
+        let hasActiveStepStatus = false;
+        const stepMsList = [];
+        for (let i = 0; i < matchedSteps.length; i += 1) {
+          const stObj = matchedSteps[i];
+          const ms = parseProtoTimestampMs(stObj?.metadata?.createdAt);
+          if (ms > 0) {
+            if (ms < minMs) minMs = ms;
+            if (ms > maxMs) maxMs = ms;
+            stepMsList.push(ms);
+          }
+          const stStatus = Number(stObj?.status || 0);
+          // CORTEX_STEP_STATUS_PENDING = 1, CORTEX_STEP_STATUS_RUNNING = 2, WAITING = 5
+          if (stStatus === 1 || stStatus === 2 || stStatus === 5) {
+            hasActiveStepStatus = true;
+          }
+        }
+        const isRunning = Boolean(
+          explicitTurnRunning ||
+            hasActiveStepStatus ||
+            (trajectoryRunning && isLatestContainer)
+        );
+        return {
+          hasFiber: true,
+          isRunning,
+          isLatestContainer,
+          minMs: Number.isFinite(minMs) ? minMs : 0,
+          maxMs,
+          stepMsList,
+          stepCount: matchedSteps.length,
+        };
       }
     }
     curEl = curEl.parentElement || curEl.parentNode;
@@ -13707,7 +13736,8 @@ function syncTurnUsageCardsInViewport({ rootDoc = document, telemetry = null } =
     };
   });
 
-  // 第二阶段：对未通过 Fiber 匹配到的节点（如无 Fiber 的精简 DOM 或测试环境），按尾部已完成轮次顺序回退对齐
+  // 第二阶段：仅对无 React Fiber 的节点（如纯静态 DOM 或轻量单元测试环境）按尾部已完成轮次顺序回退对齐；
+  // 带有真实 React Fiber 但尚未在后端 summaries 中匹配到时间戳的新轮次节点严禁回退借用旧轮次（防止刚发送 1s 内闪现旧轮次卡片）
   const usedTurns = new Set();
   for (const entry of nodeEntries) {
     if (entry.matchedSummary) {
@@ -13715,11 +13745,13 @@ function syncTurnUsageCardsInViewport({ rootDoc = document, telemetry = null } =
     }
   }
 
-  const unmatchedEntries = nodeEntries.filter((e) => !e.matchedSummary && !e.fiberMeta.isRunning);
+  const unmatchedEntries = nodeEntries.filter(
+    (e) => !e.matchedSummary && !e.fiberMeta.hasFiber && !e.fiberMeta.isRunning
+  );
   if (unmatchedEntries.length > 0) {
     const availableSummaries = summaries.filter((s) => {
       if (usedTurns.has(s.turnIndex)) return false;
-      if (isConvRunning && s.turnIndex === maxTurnIndex && !nodeEntries.some((e) => e.fiberMeta.hasFiber)) {
+      if (isConvRunning && s.turnIndex === maxTurnIndex) {
         return false;
       }
       return true;
@@ -13734,7 +13766,7 @@ function syncTurnUsageCardsInViewport({ rootDoc = document, telemetry = null } =
     }
   }
 
-  // 第三阶段：挂载或原位更新卡片（跳过正在流式输出的轮次）
+  // 第三阶段：挂载或原位更新卡片（跳过正在流式输出或刚发送尚未完成的最新轮次）
   const locale = getEffectiveLocale();
   let mountedCount = 0;
 
@@ -13743,7 +13775,10 @@ function syncTurnUsageCardsInViewport({ rootDoc = document, telemetry = null } =
     const isLastNode = i === nodeEntries.length - 1;
     const isStreamingTurn = Boolean(
       fiberMeta.isRunning ||
-        (isConvRunning && isLastNode && matchedSummary?.turnIndex === maxTurnIndex)
+        (isConvRunning &&
+          (isLastNode ||
+            fiberMeta.isLatestContainer ||
+            matchedSummary?.turnIndex === maxTurnIndex))
     );
 
     if (!matchedSummary || isStreamingTurn) {

@@ -52,7 +52,7 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
       <br />
       <b>② Per-Turn Inline Usage Summary Card Below Every Response</b>
       <br />
-      <sub>Automatically mounted at the bottom of each completed turn: breaks down <code>[Main]</code> / <code>[Exec]</code> / <code>[Subagent]</code> / <code>[Compact]</code> model calls & token shares, exact quota pool deductions (e.g., <code>G5h -6.7% | A周 -13.1%</code>), and net context delta (e.g., <code>-31.2%</code> after auto-compaction)</sub>
+      <sub>Automatically mounted at the bottom of each completed turn: breaks down <code>[Main]</code> / <code>[Exec]</code> / <code>[Subagent]</code> / <code>[Compact]</code> model calls & token shares, exact quota pool deductions (e.g., <code>A周 -13.1%</code> for Argon-only turns), and net context delta (e.g., <code>-31.2%</code> after auto-compaction)</sub>
     </td>
   </tr>
   <tr>
@@ -131,7 +131,7 @@ In long multi-turn conversations, global totals or raw step tables make it diffi
 - **Row 1 · Turn Identity & Total Duration**: Displays the exact turn index, completion timestamp (`#第30轮 · 完成于 01:12`), total model/tool steps, and cumulative wall-clock duration (`共 38 步 · 总耗时 17m 24s`).
 - **Row 2 · Role-Tagged Model & Quota-Pool Breakdown**: Groups all calls in the turn by role badge (`[主控]` Main / `[执行]` Exec / `[子代理]` Subagent / `[压缩]` Compact) and quota pool (`[Argon池]` / `[Gemini池]` / `[Claude池]` / `[Carbon池]`), showing call counts, token throughput, and percentage share within the turn.
 - **Row 3 · Per-Turn Quota Deduction & Net Context Delta**:
-  - **Quota Deduction**: Computes the percentage drop across every quota pool touched by the turn (including `Gemini 4 Argon`'s dual-pool deduction across shared `G5h` and dedicated `A周`, e.g., `G5h -6.7% | A周 -13.1%`), complementing the live remaining percentages in the bottom composer bar.
+  - **Quota Deduction**: Computes the percentage drop strictly for the quota pools actually used during the turn (e.g., Argon-only turns deduct only `A周`, whereas turns that also invoke Gemini-pool models deduct `G5h | G周 | A周`), complementing the live remaining percentages in the bottom composer bar.
   - **Context Net Delta**: Shows how much the main context window grew or shrank during the turn (e.g., `+4.8%` on normal turns, or `-31.2%` when an auto-compaction step frees context capacity).
 - **Virtual-Scroll (`trajectorySlice`) Alignment & Streaming Suppression**: Matches DOM `[data-testid="agent-response"]` nodes against backend `recentSteps` via React Fiber `container.steps[].metadata.createdAt` timestamps so virtualized long chats always display their true turn number, and suppresses mounting while a turn is actively streaming.
 

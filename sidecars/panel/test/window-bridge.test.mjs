@@ -5978,7 +5978,15 @@ test('TurnUsageCardWidget aggregates per-turn models/pools/quota deductions/cont
   assert.equal(turn12.models[1].sharePct, 40);
   assert.deepEqual(
     turn12.quotaDeductions.map((q) => q.tag),
-    ['G5h', 'G周', 'A周']
+    ['G5h', 'G周', 'A周'],
+    'Turn 12 used both Argon and Hydrogen (Gemini pool), so G5h, G周, and A周 are deducted'
+  );
+  const turn13 = summaries.find((s) => s.turnIndex === 13);
+  assert.ok(turn13);
+  assert.deepEqual(
+    turn13.quotaDeductions.map((q) => q.tag),
+    ['A周'],
+    'Turn 13 used ONLY Gemini 4 Argon (Argon pool), so ONLY A周 is deducted (never G5h or G周)'
   );
 
   // 3. Test DOM virtualized Fiber matching & streaming suppression
@@ -6049,6 +6057,31 @@ test('TurnUsageCardWidget aggregates per-turn models/pools/quota deductions/cont
     const card13 = resp13.querySelector('.wm-turn-usage-card');
     assert.ok(card13);
     assert.equal(card13.getAttribute('data-turn-index'), '13');
+
+    // Simulate user sending a brand-new Turn #14 (1 second ago, Fiber has timestamp 1700000300n,
+    // before backend telemetry has polled Turn #14 steps): MUST NOT borrow old Turn #11!
+    const wrap14 = makeElement('div');
+    wrap14.__reactFiber$test = {
+      return: {
+        memoizedProps: {
+          container: {
+            isLatest: true,
+            steps: [{ status: 2, metadata: { createdAt: { seconds: 1700000300n, nanos: 0 } } }],
+          },
+        },
+      },
+    };
+    const resp14 = makeElement('div');
+    resp14.setAttribute('data-testid', 'agent-response');
+    wrap14.appendChild(resp14);
+    body.appendChild(wrap14);
+
+    syncTurnUsageCardsInViewport({ rootDoc: mockDoc, telemetry });
+    assert.equal(
+      resp14.querySelector('.wm-turn-usage-card'),
+      null,
+      'Newly sent Turn #14 with unmatched future Fiber timestamp never borrows old Turn #11'
+    );
 
     // Dispose cleans up all cards and style tag
     disposeTurnUsageCardsInViewport(mockDoc);

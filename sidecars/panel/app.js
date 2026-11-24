@@ -35,7 +35,6 @@ const TOPBAR_SLOT_KEYS = Object.freeze([
   'gemini_weekly',
   'claude_5h',
   'claude_weekly',
-  'argon_weekly',
 ]);
 
 const DEFAULT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);
@@ -1114,17 +1113,14 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'capsule.quotaTag.gemini_5h': 'G5h {pct}%',
   'capsule.quotaTag.claude_weekly': 'C周 {pct}%',
   'capsule.quotaTag.claude_5h': 'C5h {pct}%',
-  'capsule.quotaTag.argon_weekly': 'A周 {pct}%',
   'capsule.quotaLabel.gemini_weekly': 'G周',
   'capsule.quotaLabel.gemini_5h': 'G5h',
   'capsule.quotaLabel.claude_weekly': 'C周',
   'capsule.quotaLabel.claude_5h': 'C5h',
-  'capsule.quotaLabel.argon_weekly': 'A周',
   'capsule.quotaTagUnknown.gemini_weekly': 'G周 --%',
   'capsule.quotaTagUnknown.gemini_5h': 'G5h --%',
   'capsule.quotaTagUnknown.claude_weekly': 'C周 --%',
   'capsule.quotaTagUnknown.claude_5h': 'C5h --%',
-  'capsule.quotaTagUnknown.argon_weekly': 'A周 --%',
   'capsule.newVersion': '新版本',
   'capsule.updating': '更新中…',
   'capsule.ariaUpdateTitle': '发现新版本，点击立即更新',
@@ -1165,7 +1161,6 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'capMetric.gemini_weekly': 'Gemini 周额度',
   'capMetric.claude_5h': 'Claude 5h 额度',
   'capMetric.claude_weekly': 'Claude 周额度',
-  'capMetric.argon_weekly': 'Argon 周额度',
 
   // Overview Matrix Metric Options & Cells
   'ovMetric.tps': '输出速度',
@@ -1693,7 +1688,7 @@ const I18N_MESSAGES_ZH_CN = Object.freeze({
   'turnCard.roleCompact': '压缩',
   'turnCard.poolGemini': 'Gemini池',
   'turnCard.poolArgon': 'Argon池',
-  'turnCard.poolClaude': 'Claude池',
+  'turnCard.poolClaude': 'Claude/GPT池',
   'turnCard.poolCarbon': 'Carbon池',
   'turnCard.quotaNone': '未产生额度扣减',
 });
@@ -1780,17 +1775,14 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'capsule.quotaTag.gemini_5h': 'G5h {pct}%',
   'capsule.quotaTag.claude_weekly': 'C7d {pct}%',
   'capsule.quotaTag.claude_5h': 'C5h {pct}%',
-  'capsule.quotaTag.argon_weekly': 'A7d {pct}%',
   'capsule.quotaLabel.gemini_weekly': 'G7d',
   'capsule.quotaLabel.gemini_5h': 'G5h',
   'capsule.quotaLabel.claude_weekly': 'C7d',
   'capsule.quotaLabel.claude_5h': 'C5h',
-  'capsule.quotaLabel.argon_weekly': 'A7d',
   'capsule.quotaTagUnknown.gemini_weekly': 'G7d --%',
   'capsule.quotaTagUnknown.gemini_5h': 'G5h --%',
   'capsule.quotaTagUnknown.claude_weekly': 'C7d --%',
   'capsule.quotaTagUnknown.claude_5h': 'C5h --%',
-  'capsule.quotaTagUnknown.argon_weekly': 'A7d --%',
   'capsule.newVersion': 'Update',
   'capsule.updating': 'Updating…',
   'capsule.ariaUpdateTitle': 'New version available, click to update',
@@ -1831,7 +1823,6 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'capMetric.gemini_weekly': 'Gemini Weekly Quota',
   'capMetric.claude_5h': 'Claude 5h Quota',
   'capMetric.claude_weekly': 'Claude Weekly Quota',
-  'capMetric.argon_weekly': 'Argon Weekly Quota',
 
   // Overview Matrix Metric Options & Cells
   'ovMetric.tps': 'Output Speed',
@@ -2359,7 +2350,7 @@ const I18N_MESSAGES_EN_US = Object.freeze({
   'turnCard.roleCompact': 'Compact',
   'turnCard.poolGemini': 'Gemini Pool',
   'turnCard.poolArgon': 'Argon Pool',
-  'turnCard.poolClaude': 'Claude Pool',
+  'turnCard.poolClaude': 'Claude/GPT Pool',
   'turnCard.poolCarbon': 'Carbon Pool',
   'turnCard.quotaNone': 'No quota drop',
 });
@@ -3062,7 +3053,7 @@ function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     );
   const isOrchSeries =
     isOrchWorker ||
-    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
+    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|Orchestrator\s+Gemini\s+4\s+(?:Carbon|Argon|Neon)(?:\s+(?:XHigh|High|Medium|Low))?|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
       combined
     );
 
@@ -9587,14 +9578,13 @@ const TAGGED_QUOTA_SLOT_KEYS = new Set([
   'gemini_5h',
   'claude_weekly',
   'claude_5h',
-  'argon_weekly',
 ]);
 
 /**
- * 解析指定模型池（Gemini / Argon / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
+ * 解析指定模型池（Gemini / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
  *
  * @param {object|null|undefined} quotas
- * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'|'argon_weekly'} slotKey
+ * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'} slotKey
  * @returns {{ roundedPct: number, shortText: string } | null}
  */
 function resolveSpecificQuotaSlotSummary(quotas, slotKey) {
@@ -12940,15 +12930,22 @@ function classifyTurnModelRoleAndPool(step, quotas = null) {
   const hasExplicitPools = pools.length > 0;
   const getPoolIdentityText = (p) =>
     `${p?.poolKey || ''} ${p?.family || ''} ${p?.poolLabel || ''} ${p?.poolName || ''} ${p?.id || ''} ${p?.label || ''}`;
+  const hasValidPoolWindow = (p) =>
+    Boolean(
+      p?.hasWeekly ||
+        p?.has5h ||
+        p?.weeklyRemainingPct != null ||
+        p?.remainingPct != null
+    );
   const hasArgonPool =
-    !hasExplicitPools ||
-    pools.some((p) => /\bargon\b/i.test(getPoolIdentityText(p)));
-  const hasCarbonPool = pools.some((p) =>
-    /\bcarbon\b/i.test(getPoolIdentityText(p))
-  );
+    hasExplicitPools &&
+    pools.some((p) => hasValidPoolWindow(p) && /\bargon\b/i.test(getPoolIdentityText(p)));
+  const hasCarbonPool =
+    hasExplicitPools &&
+    pools.some((p) => hasValidPoolWindow(p) && /\bcarbon\b/i.test(getPoolIdentityText(p)));
 
   let poolFamily = 'Gemini';
-  if (/\b(?:claude|gpt|sonnet|opus|haiku|o[134](?:-\w+)?)\b/i.test(rawStr)) {
+  if (/\b(?:claude|anthropic|fable|gpt|openai|oss|sonnet|opus|haiku|o[134](?:-\w+)?)\b/i.test(rawStr)) {
     poolFamily = 'Claude';
   } else if (
     hasArgonPool &&
@@ -12974,6 +12971,9 @@ function findQuotaPool(pools, familyRegex) {
   return null;
 }
 
+const FIVE_HOURS_MS = 5 * 3600 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+
 function estimateCycleDropPct(
   turnCostUsd,
   turnTokens,
@@ -12982,7 +12982,8 @@ function estimateCycleDropPct(
   usedPctField,
   remPctField,
   fallbackBudgetUsd,
-  fallbackBudgetTokens
+  fallbackBudgetTokens,
+  cycleCtx = null
 ) {
   const cost = Math.max(0, Number(turnCostUsd || 0));
   const tokens = Math.max(0, Number(turnTokens || 0));
@@ -13004,19 +13005,27 @@ function estimateCycleDropPct(
   const cycleCost = Math.max(0, Number(cycleUsage?.costUsd || 0));
   const cycleTokens = Math.max(0, Number(cycleUsage?.tokens || 0));
 
-  if (usedPct >= 0.2 && cycleCost > 0.001 && cost > 0) {
-    const impliedCapUsd = Math.max(
-      fallbackBudgetUsd * 0.25,
-      Math.min(fallbackBudgetUsd * 4, cycleCost / (usedPct / 100))
-    );
-    return (cost / impliedCapUsd) * 100;
+  const resetTimeIso = cycleCtx?.resetTimeIso || '';
+  const windowDurationMs = Number(cycleCtx?.windowDurationMs || 0);
+  const turnMaxCreatedAtMs = Number(cycleCtx?.turnMaxCreatedAtMs || 0);
+  const resetMs = resetTimeIso ? Date.parse(resetTimeIso) : 0;
+  const cycleStartMs =
+    Number.isFinite(resetMs) && resetMs > 0 && windowDurationMs > 0
+      ? resetMs - windowDurationMs
+      : 0;
+  const inCurrentCycle = !(
+    cycleStartMs > 0 &&
+    turnMaxCreatedAtMs > 0 &&
+    turnMaxCreatedAtMs < cycleStartMs - 60_000
+  );
+
+  if (inCurrentCycle && usedPct >= 0.5 && cycleCost > 0.001 && cost > 0) {
+    const rawDrop = usedPct * (cost / cycleCost);
+    return Math.min(usedPct, rawDrop);
   }
-  if (usedPct >= 0.2 && cycleTokens > 1000 && tokens > 0) {
-    const impliedCapTok = Math.max(
-      fallbackBudgetTokens * 0.25,
-      Math.min(fallbackBudgetTokens * 4, cycleTokens / (usedPct / 100))
-    );
-    return (tokens / impliedCapTok) * 100;
+  if (inCurrentCycle && usedPct >= 0.5 && cycleTokens > 1000 && tokens > 0) {
+    const rawDrop = usedPct * (tokens / cycleTokens);
+    return Math.min(usedPct, rawDrop);
   }
   if (cost > 0 && fallbackBudgetUsd > 0) {
     return (cost / fallbackBudgetUsd) * 100;
@@ -13041,9 +13050,10 @@ function formatDropPctText(tag, dropPct) {
  *
  * @param {Record<string, { calls: number, tokens: number, costUsd: number }>} poolStats
  * @param {object|null|undefined} quotas
+ * @param {number} [turnMaxCreatedAtMs=0]
  * @returns {Array<{ tag: string, dropPct: number, text: string }>}
  */
-function computeTurnQuotaDeductions(poolStats, quotas = null) {
+function computeTurnQuotaDeductions(poolStats, quotas = null, turnMaxCreatedAtMs = 0) {
   const pools = Array.isArray(quotas?.pools) ? quotas.pools : [];
   const geminiPool = findQuotaPool(pools, /^(?!.*\bargon\b).*\bgemini\b/i);
   const claudePool = findQuotaPool(pools, /\b(?:claude|gpt)\b/i);
@@ -13052,7 +13062,6 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
   const gStat = poolStats.Gemini || { calls: 0, tokens: 0, costUsd: 0 };
   const aStat = poolStats.Argon || { calls: 0, tokens: 0, costUsd: 0 };
   const cStat = poolStats.Claude || { calls: 0, tokens: 0, costUsd: 0 };
-  const cbStat = poolStats.Carbon || { calls: 0, tokens: 0, costUsd: 0 };
 
   const out = [];
 
@@ -13065,8 +13074,13 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycle5h',
       'usedPct',
       'remainingPct',
-      27.8,
-      65_000_000
+      25.0,
+      60_000_000,
+      {
+        resetTimeIso: geminiPool?.resetTime || '',
+        windowDurationMs: FIVE_HOURS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'G5h',
@@ -13081,8 +13095,13 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycleWeekly',
       'weeklyUsedPct',
       'weeklyRemainingPct',
-      96.5,
-      225_000_000
+      90.0,
+      210_000_000,
+      {
+        resetTimeIso: geminiPool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'G周',
@@ -13101,7 +13120,12 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'usedPct',
       'remainingPct',
       4.5,
-      3_200_000
+      3_200_000,
+      {
+        resetTimeIso: claudePool?.resetTime || '',
+        windowDurationMs: FIVE_HOURS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'C5h',
@@ -13116,8 +13140,13 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycleWeekly',
       'weeklyUsedPct',
       'weeklyRemainingPct',
-      4.45,
-      3_100_000
+      4.5,
+      3_200_000,
+      {
+        resetTimeIso: claudePool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'C周',
@@ -13126,7 +13155,7 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
     });
   }
 
-  // Argon 独立周限池 (A周)
+  // Argon 独立周限池 (A周)：仅当显式存在独立 Argon 池时才计算
   if (aStat.calls > 0) {
     const dropAWk = estimateCycleDropPct(
       aStat.costUsd,
@@ -13136,7 +13165,12 @@ function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'weeklyUsedPct',
       'weeklyRemainingPct',
       13.8,
-      48_000_000
+      48_000_000,
+      {
+        resetTimeIso: argonPool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'A周',
@@ -13365,7 +13399,7 @@ function buildTurnUsageSummaries(telemetry) {
         ? `${rawDeltaPct >= 0 ? '+' : '-'}0.1%`
         : `${sign}${rawDeltaPct.toFixed(1)}%`;
 
-    const quotaDeductions = computeTurnQuotaDeductions(poolStats, quotas);
+    const quotaDeductions = computeTurnQuotaDeductions(poolStats, quotas, maxCreatedAtMs);
 
     summaries.push({
       turnIndex,
@@ -14370,11 +14404,11 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
       agentBadge: '子1',
       agentRole: subRole,
       agentLabel: subRole,
-      modelLabel: 'Gemini 3.8 Flash',
-      modelShort: 'flash-3.8',
-      rawModel: 'MODEL_PLACEHOLDER_M42',
-      modelUpstream: 'gemini-3.8-flash-n',
-      upstreamModel: 'gemini-3.8-flash-n',
+      modelLabel: 'Gemini 4 Neon (High)',
+      modelShort: 'neon-4-high',
+      rawModel: 'MODEL_PLACEHOLDER_M532',
+      modelUpstream: 'gemini-4-neon-high',
+      upstreamModel: 'gemini-4-neon-high',
       tokPerSec: 96.2,
       ttftSec: 0.68,
       totalDurationSec: 5.4,
@@ -14663,19 +14697,6 @@ function buildStructurePreviewTelemetry(baseSettings = {}, draftOverrides = {}) 
           weeklyResetTime: resetWkIso,
           cycle5h: { tokens: 620000, costUsd: 2.15, calls: 11 },
           cycleWeekly: { tokens: 5800000, costUsd: 18.6, calls: 92 },
-        },
-        {
-          poolKey: 'Argon',
-          poolLabel: 'Gemini 4 Argon',
-          family: 'Gemini',
-          usedPct: null,
-          remainingPct: null,
-          resetTime: null,
-          weeklyUsedPct: 10,
-          weeklyRemainingPct: 90,
-          weeklyResetTime: resetWkIso,
-          cycle5h: { tokens: 0, costUsd: 0, calls: 0 },
-          cycleWeekly: { tokens: 1200000, costUsd: 1.8, calls: 15 },
         },
       ],
       weekly: {
@@ -20822,7 +20843,7 @@ function findHostTitlebar() {
 const COMPOSER_EXCLUDED_ANCESTOR_SELECTOR =
   '.part.titlebar, .part.statusbar, .quick-input-widget, .suggest-widget, .find-widget, .scm-editor, .search-view, [class*="@container/titlebar"]';
 const COMPOSER_MODEL_LABEL_RE =
-  /\b(?:gemini|claude|gpt|argon|carbon|hydrogen|helix|flash|sonnet|opus|haiku|orchestrator|llama|deepseek|qwen|mistral|model_placeholder|placeholder_m\d+|o[134](?:-\w+)?)\b/i;
+  /\b(?:gemini|claude|gpt|neon|argon|carbon|hydrogen|helix|flash|fable|sonnet|opus|haiku|orchestrator|llama|deepseek|qwen|mistral|model_placeholder|placeholder_m\d+|o[134](?:-\w+)?)\b/i;
 const COMPOSER_MODEL_ATTR_RE =
   /\bmodel[-_\s]?(?:select|picker|switch|selector|menu|name)\b|选择模型|切换模型/i;
 const COMPOSER_MODE_EXACT_RE = /^(?:auto|自动)$/i;

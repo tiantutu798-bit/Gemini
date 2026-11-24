@@ -115,14 +115,13 @@ const TAGGED_QUOTA_SLOT_KEYS = new Set([
   'gemini_5h',
   'claude_weekly',
   'claude_5h',
-  'argon_weekly',
 ]);
 
 /**
- * 解析指定模型池（Gemini / Argon / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
+ * 解析指定模型池（Gemini / Claude & GPT）与指定时间窗口（5h 或周额度）的剩余百分比摘要。
  *
  * @param {object|null|undefined} quotas
- * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'|'argon_weekly'} slotKey
+ * @param {'gemini_5h'|'gemini_weekly'|'claude_5h'|'claude_weekly'} slotKey
  * @returns {{ roundedPct: number, shortText: string } | null}
  */
 export function resolveSpecificQuotaSlotSummary(quotas, slotKey) {

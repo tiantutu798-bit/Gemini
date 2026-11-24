@@ -6088,6 +6088,121 @@ test('TurnUsageCardWidget aggregates per-turn models/pools/quota deductions/cont
     assert.equal(resp12.querySelector('.wm-turn-usage-card'), null);
     assert.equal(resp13.querySelector('.wm-turn-usage-card'), null);
     assert.equal(mockDoc.getElementById('ag-usage-monitor-turn-styles'), null);
+
+    // 4. Verify latest 2-pool official layout (Gemini + Claude & GPT only, no standalone Argon pool)
+    // and cross-cycle reset protection (old turns must not blow up when a new 5h/weekly cycle just started)
+    const cycleReset5hMs = 1795503124000;
+    const cycleResetWkMs = cycleReset5hMs + 6 * 24 * 3600 * 1000;
+    const dualPoolQuotas = {
+      pools: [
+        {
+          poolKey: 'Gemini',
+          poolLabel: 'Gemini',
+          family: 'Gemini',
+          has5h: true,
+          hasWeekly: true,
+          usedPct: 6.1,
+          remainingPct: 93.9,
+          resetTime: new Date(cycleReset5hMs).toISOString(),
+          weeklyUsedPct: 2.0,
+          weeklyRemainingPct: 98.0,
+          weeklyResetTime: new Date(cycleResetWkMs).toISOString(),
+          cycle5h: { calls: 1, tokens: 211_288, costUsd: 0.44 },
+          cycleWeekly: { calls: 1, tokens: 211_288, costUsd: 0.44 },
+        },
+        {
+          poolKey: 'Claude & GPT',
+          poolLabel: 'Claude & GPT',
+          family: 'Claude & GPT',
+          has5h: true,
+          hasWeekly: true,
+          usedPct: 0,
+          remainingPct: 100,
+          resetTime: new Date(cycleReset5hMs).toISOString(),
+          weeklyUsedPct: 51.9,
+          weeklyRemainingPct: 48.1,
+          weeklyResetTime: new Date(cycleResetWkMs - 5 * 24 * 3600 * 1000).toISOString(),
+          cycle5h: { calls: 0, tokens: 0, costUsd: 0 },
+          cycleWeekly: { calls: 20, tokens: 1_641_257, costUsd: 2.3 },
+        },
+      ],
+    };
+    assert.deepEqual(
+      classifyTurnModelRoleAndPool(
+        { modelLabel: 'Gemini 4 Carbon (High)', modelShort: 'carbon-4-high' },
+        dualPoolQuotas
+      ),
+      { roleKey: 'Main', roleBadgeClass: 'role-main', poolFamily: 'Gemini' }
+    );
+    assert.deepEqual(
+      classifyTurnModelRoleAndPool(
+        { modelLabel: 'Gemini 4 Neon (High)', modelShort: 'neon-4-high', modelKey: 'MODEL_PLACEHOLDER_M532' },
+        dualPoolQuotas
+      ),
+      { roleKey: 'Main', roleBadgeClass: 'role-main', poolFamily: 'Gemini' }
+    );
+    assert.deepEqual(
+      classifyTurnModelRoleAndPool(
+        { modelLabel: 'Gemini 4 Argon (High)', modelShort: 'argon-4-high' },
+        dualPoolQuotas
+      ),
+      { roleKey: 'Main', roleBadgeClass: 'role-main', poolFamily: 'Gemini' }
+    );
+
+    const dualPoolSummaries = buildTurnUsageSummaries({
+      settings: { language: 'zh-CN', orchestratorIdMode: 'compact', enableWindowOverlay: true },
+      quotas: dualPoolQuotas,
+      activeConversation: {
+        cascadeId: 'dual-pool-conv',
+        isRunning: false,
+        contextLimitTokens: 512_000,
+        recentSteps: [
+          // Turn 1: historical turn BEFORE current 5h cycle started -> uses baseline budget ($25 / $90), NOT new cycle's tiny denominator
+          {
+            stepIndex: 10,
+            rootTurnIndex: 1,
+            turnIndex: 1,
+            createdAtMs: cycleReset5hMs - 10 * 3600 * 1000,
+            totalDurationSec: 12.0,
+            modelLabel: 'Gemini 4 Argon (High)',
+            modelShort: 'argon-4-high',
+            inputTokens: 100_000,
+            cacheReadTokens: 100_000,
+            outputTokens: 50_000,
+            contextTokens: 200_000,
+            costUsd: 1.7,
+          },
+          // Turn 2: current cycle turn with Orchestrator Gemini 4 Carbon High -> clamped cleanly to G5h <= 6.1%, G周 <= 2.0%
+          {
+            stepIndex: 15,
+            rootTurnIndex: 2,
+            turnIndex: 2,
+            createdAtMs: cycleReset5hMs - 4 * 3600 * 1000,
+            totalDurationSec: 22.0,
+            modelLabel: 'Orchestrator Gemini 4 Carbon High',
+            modelUpstream: 'gemini-pro-orchestrator',
+            inputTokens: 209_492,
+            cacheReadTokens: 0,
+            outputTokens: 1_796,
+            contextTokens: 211_288,
+            costUsd: 0.44,
+          },
+        ],
+      },
+    });
+    assert.equal(dualPoolSummaries.length, 2);
+    const oldCycleTurn = dualPoolSummaries[0];
+    assert.deepEqual(oldCycleTurn.quotaDeductions.map((q) => q.tag), ['G5h', 'G周']);
+    assert.ok(
+      oldCycleTurn.quotaDeductions[0].dropPct <= 7.0,
+      `Cross-cycle old turn dropPct should stay near baseline (~6.8%), got ${oldCycleTurn.quotaDeductions[0].dropPct}`
+    );
+    const newCycleTurn = dualPoolSummaries[1];
+    assert.equal(newCycleTurn.models[0].displayName, 'orchestrator-carbon');
+    assert.equal(newCycleTurn.models[0].poolFamily, 'Gemini');
+    assert.deepEqual(newCycleTurn.quotaDeductions.map((q) => q.tag), ['G5h', 'G周']);
+    assert.ok(newCycleTurn.quotaDeductions[0].dropPct <= 6.1);
+    assert.ok(newCycleTurn.quotaDeductions[1].dropPct <= 2.0);
   } finally {
     globalThis.document = prevDoc;
   }

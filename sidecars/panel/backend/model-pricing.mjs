@@ -47,6 +47,7 @@ function inferFamilyFromProviderOrKey(rawModelKey = '', modelId = '', apiProvide
   }
   if (
     combined.includes('GEMINI') ||
+    combined.includes('NEON') ||
     combined.includes('CARBON') ||
     combined.includes('ARGON') ||
     combined.includes('HYDROGEN') ||
@@ -78,7 +79,7 @@ export function isArgonModelIdentifier(...parts) {
 }
 
 /**
- * 判断一组模型标识字段是否指向 Gemini 4 Neon 系列模型（含 M537 Orchestrator (Neon)）。
+ * 判断一组模型标识字段是否指向 Gemini 4 Neon 系列模型（含 M532~M535 及 M537 Orchestrator (Neon)）。
  *
  * @param {...string} parts 待检测的标识片段
  * @returns {boolean}
@@ -87,11 +88,11 @@ export function isNeonModelIdentifier(...parts) {
   const text = parts.filter(Boolean).join(' ');
   if (
     /\bhydrogen\b|\bgemini-flash-worker-agy\b|MODEL_PLACEHOLDER_M(?:669|52[5678])\b/i.test(text) &&
-    !/\bneon\b|MODEL_PLACEHOLDER_M537\b/i.test(text)
+    !/\bneon\b|MODEL_PLACEHOLDER_M53[23457]\b/i.test(text)
   ) {
     return false;
   }
-  return /\bneon\b|gemini-4-neon|gemini-pro-orchestrator-neon|MODEL_PLACEHOLDER_M537\b/i.test(
+  return /\bneon\b|gemini-4-neon|gemini-pro-orchestrator-neon|MODEL_PLACEHOLDER_M53[23457]\b/i.test(
     text
   );
 }
@@ -109,7 +110,7 @@ export function isCarbonModelIdentifier(...parts) {
   }
   if (
     /\bhydrogen\b|\bgemini-flash-worker-agy\b|MODEL_PLACEHOLDER_M(?:669|52[5678])\b/i.test(text) ||
-    /\bneon\b|\bargon\b|-g1-pro\b|MODEL_PLACEHOLDER_M(?:537|41[789]|681)\b/i.test(text)
+    /\bneon\b|\bargon\b|-g1-pro\b|MODEL_PLACEHOLDER_M(?:53[23457]|41[789]|681)\b/i.test(text)
   ) {
     return false;
   }

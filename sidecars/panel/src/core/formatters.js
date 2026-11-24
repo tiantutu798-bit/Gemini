@@ -256,7 +256,7 @@ export function resolveModelDisplayInfo(target, settings = {}, options = {}) {
     );
   const isOrchSeries =
     isOrchWorker ||
-    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
+    /\bgemini-pro-orchestrator(?:-(?:argon|neon|g1-pro))?\b|\borchestrator-(?:carbon|argon|neon|g1-pro)\b|\borch-(?:carbon|argon|neon|g1-pro)(?:·压缩)?(?=\s|$)|Orchestrator\s*\((?:Carbon|Argon|Neon|G1\s*Pro)\)|Orchestrator\s+Gemini\s+4\s+(?:Carbon|Argon|Neon)(?:\s+(?:XHigh|High|Medium|Low))?|\bMODEL_PLACEHOLDER_M(?:667|681|537)\b/i.test(
       combined
     );
 

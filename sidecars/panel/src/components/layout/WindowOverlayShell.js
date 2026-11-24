@@ -167,7 +167,7 @@ function findHostTitlebar() {
 const COMPOSER_EXCLUDED_ANCESTOR_SELECTOR =
   '.part.titlebar, .part.statusbar, .quick-input-widget, .suggest-widget, .find-widget, .scm-editor, .search-view, [class*="@container/titlebar"]';
 const COMPOSER_MODEL_LABEL_RE =
-  /\b(?:gemini|claude|gpt|argon|carbon|hydrogen|helix|flash|sonnet|opus|haiku|orchestrator|llama|deepseek|qwen|mistral|model_placeholder|placeholder_m\d+|o[134](?:-\w+)?)\b/i;
+  /\b(?:gemini|claude|gpt|neon|argon|carbon|hydrogen|helix|flash|fable|sonnet|opus|haiku|orchestrator|llama|deepseek|qwen|mistral|model_placeholder|placeholder_m\d+|o[134](?:-\w+)?)\b/i;
 const COMPOSER_MODEL_ATTR_RE =
   /\bmodel[-_\s]?(?:select|picker|switch|selector|menu|name)\b|选择模型|切换模型/i;
 const COMPOSER_MODE_EXACT_RE = /^(?:auto|自动)$/i;

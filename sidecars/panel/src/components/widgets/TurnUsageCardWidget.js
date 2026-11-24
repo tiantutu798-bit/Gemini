@@ -262,15 +262,22 @@ export function classifyTurnModelRoleAndPool(step, quotas = null) {
   const hasExplicitPools = pools.length > 0;
   const getPoolIdentityText = (p) =>
     `${p?.poolKey || ''} ${p?.family || ''} ${p?.poolLabel || ''} ${p?.poolName || ''} ${p?.id || ''} ${p?.label || ''}`;
+  const hasValidPoolWindow = (p) =>
+    Boolean(
+      p?.hasWeekly ||
+        p?.has5h ||
+        p?.weeklyRemainingPct != null ||
+        p?.remainingPct != null
+    );
   const hasArgonPool =
-    !hasExplicitPools ||
-    pools.some((p) => /\bargon\b/i.test(getPoolIdentityText(p)));
-  const hasCarbonPool = pools.some((p) =>
-    /\bcarbon\b/i.test(getPoolIdentityText(p))
-  );
+    hasExplicitPools &&
+    pools.some((p) => hasValidPoolWindow(p) && /\bargon\b/i.test(getPoolIdentityText(p)));
+  const hasCarbonPool =
+    hasExplicitPools &&
+    pools.some((p) => hasValidPoolWindow(p) && /\bcarbon\b/i.test(getPoolIdentityText(p)));
 
   let poolFamily = 'Gemini';
-  if (/\b(?:claude|gpt|sonnet|opus|haiku|o[134](?:-\w+)?)\b/i.test(rawStr)) {
+  if (/\b(?:claude|anthropic|fable|gpt|openai|oss|sonnet|opus|haiku|o[134](?:-\w+)?)\b/i.test(rawStr)) {
     poolFamily = 'Claude';
   } else if (
     hasArgonPool &&
@@ -296,6 +303,9 @@ function findQuotaPool(pools, familyRegex) {
   return null;
 }
 
+const FIVE_HOURS_MS = 5 * 3600 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+
 function estimateCycleDropPct(
   turnCostUsd,
   turnTokens,
@@ -304,7 +314,8 @@ function estimateCycleDropPct(
   usedPctField,
   remPctField,
   fallbackBudgetUsd,
-  fallbackBudgetTokens
+  fallbackBudgetTokens,
+  cycleCtx = null
 ) {
   const cost = Math.max(0, Number(turnCostUsd || 0));
   const tokens = Math.max(0, Number(turnTokens || 0));
@@ -326,19 +337,27 @@ function estimateCycleDropPct(
   const cycleCost = Math.max(0, Number(cycleUsage?.costUsd || 0));
   const cycleTokens = Math.max(0, Number(cycleUsage?.tokens || 0));
 
-  if (usedPct >= 0.2 && cycleCost > 0.001 && cost > 0) {
-    const impliedCapUsd = Math.max(
-      fallbackBudgetUsd * 0.25,
-      Math.min(fallbackBudgetUsd * 4, cycleCost / (usedPct / 100))
-    );
-    return (cost / impliedCapUsd) * 100;
+  const resetTimeIso = cycleCtx?.resetTimeIso || '';
+  const windowDurationMs = Number(cycleCtx?.windowDurationMs || 0);
+  const turnMaxCreatedAtMs = Number(cycleCtx?.turnMaxCreatedAtMs || 0);
+  const resetMs = resetTimeIso ? Date.parse(resetTimeIso) : 0;
+  const cycleStartMs =
+    Number.isFinite(resetMs) && resetMs > 0 && windowDurationMs > 0
+      ? resetMs - windowDurationMs
+      : 0;
+  const inCurrentCycle = !(
+    cycleStartMs > 0 &&
+    turnMaxCreatedAtMs > 0 &&
+    turnMaxCreatedAtMs < cycleStartMs - 60_000
+  );
+
+  if (inCurrentCycle && usedPct >= 0.5 && cycleCost > 0.001 && cost > 0) {
+    const rawDrop = usedPct * (cost / cycleCost);
+    return Math.min(usedPct, rawDrop);
   }
-  if (usedPct >= 0.2 && cycleTokens > 1000 && tokens > 0) {
-    const impliedCapTok = Math.max(
-      fallbackBudgetTokens * 0.25,
-      Math.min(fallbackBudgetTokens * 4, cycleTokens / (usedPct / 100))
-    );
-    return (tokens / impliedCapTok) * 100;
+  if (inCurrentCycle && usedPct >= 0.5 && cycleTokens > 1000 && tokens > 0) {
+    const rawDrop = usedPct * (tokens / cycleTokens);
+    return Math.min(usedPct, rawDrop);
   }
   if (cost > 0 && fallbackBudgetUsd > 0) {
     return (cost / fallbackBudgetUsd) * 100;
@@ -363,9 +382,10 @@ function formatDropPctText(tag, dropPct) {
  *
  * @param {Record<string, { calls: number, tokens: number, costUsd: number }>} poolStats
  * @param {object|null|undefined} quotas
+ * @param {number} [turnMaxCreatedAtMs=0]
  * @returns {Array<{ tag: string, dropPct: number, text: string }>}
  */
-export function computeTurnQuotaDeductions(poolStats, quotas = null) {
+export function computeTurnQuotaDeductions(poolStats, quotas = null, turnMaxCreatedAtMs = 0) {
   const pools = Array.isArray(quotas?.pools) ? quotas.pools : [];
   const geminiPool = findQuotaPool(pools, /^(?!.*\bargon\b).*\bgemini\b/i);
   const claudePool = findQuotaPool(pools, /\b(?:claude|gpt)\b/i);
@@ -374,7 +394,6 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
   const gStat = poolStats.Gemini || { calls: 0, tokens: 0, costUsd: 0 };
   const aStat = poolStats.Argon || { calls: 0, tokens: 0, costUsd: 0 };
   const cStat = poolStats.Claude || { calls: 0, tokens: 0, costUsd: 0 };
-  const cbStat = poolStats.Carbon || { calls: 0, tokens: 0, costUsd: 0 };
 
   const out = [];
 
@@ -387,8 +406,13 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycle5h',
       'usedPct',
       'remainingPct',
-      27.8,
-      65_000_000
+      25.0,
+      60_000_000,
+      {
+        resetTimeIso: geminiPool?.resetTime || '',
+        windowDurationMs: FIVE_HOURS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'G5h',
@@ -403,8 +427,13 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycleWeekly',
       'weeklyUsedPct',
       'weeklyRemainingPct',
-      96.5,
-      225_000_000
+      90.0,
+      210_000_000,
+      {
+        resetTimeIso: geminiPool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'G周',
@@ -423,7 +452,12 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'usedPct',
       'remainingPct',
       4.5,
-      3_200_000
+      3_200_000,
+      {
+        resetTimeIso: claudePool?.resetTime || '',
+        windowDurationMs: FIVE_HOURS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'C5h',
@@ -438,8 +472,13 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'cycleWeekly',
       'weeklyUsedPct',
       'weeklyRemainingPct',
-      4.45,
-      3_100_000
+      4.5,
+      3_200_000,
+      {
+        resetTimeIso: claudePool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'C周',
@@ -448,7 +487,7 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
     });
   }
 
-  // Argon 独立周限池 (A周)
+  // Argon 独立周限池 (A周)：仅当显式存在独立 Argon 池时才计算
   if (aStat.calls > 0) {
     const dropAWk = estimateCycleDropPct(
       aStat.costUsd,
@@ -458,7 +497,12 @@ export function computeTurnQuotaDeductions(poolStats, quotas = null) {
       'weeklyUsedPct',
       'weeklyRemainingPct',
       13.8,
-      48_000_000
+      48_000_000,
+      {
+        resetTimeIso: argonPool?.weeklyResetTime || '',
+        windowDurationMs: SEVEN_DAYS_MS,
+        turnMaxCreatedAtMs,
+      }
     );
     out.push({
       tag: 'A周',
@@ -687,7 +731,7 @@ export function buildTurnUsageSummaries(telemetry) {
         ? `${rawDeltaPct >= 0 ? '+' : '-'}0.1%`
         : `${sign}${rawDeltaPct.toFixed(1)}%`;
 
-    const quotaDeductions = computeTurnQuotaDeductions(poolStats, quotas);
+    const quotaDeductions = computeTurnQuotaDeductions(poolStats, quotas, maxCreatedAtMs);
 
     summaries.push({
       turnIndex,

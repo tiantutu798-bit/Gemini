@@ -30,7 +30,6 @@ export const TOPBAR_SLOT_KEYS = Object.freeze([
   'gemini_weekly',
   'claude_5h',
   'claude_weekly',
-  'argon_weekly',
 ]);
 
 export const DEFAULT_TOPBAR_SLOTS = Object.freeze(['tps', 'ttft', 'context']);

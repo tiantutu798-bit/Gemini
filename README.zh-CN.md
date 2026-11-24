@@ -6,6 +6,7 @@
 
 Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、速率、上下文与配额监控插件（基于 [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor) 二次开发），无外部 npm 依赖。
 
+[![Version](https://img.shields.io/badge/version-v1.6.0-10b981?style=flat-square)](https://github.com/tiantutu798-bit/Gemini/releases/tag/v1.6.0)
 [![Stars](https://img.shields.io/github/stars/tiantutu798-bit/Gemini?style=flat-square&color=f59e0b)](https://github.com/tiantutu798-bit/Gemini/stargazers)
 [![License](https://img.shields.io/github/license/tiantutu798-bit/Gemini?style=flat-square&color=3b82f6)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20npm%20%E4%BE%9D%E8%B5%96-10b981?style=flat-square)](#本地开发)
@@ -13,7 +14,7 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 
 [English](README.md) · **简体中文**
 
-[**✨ 核心创新（置顶）**](#核心创新亮点置顶) · [四张实拍图](#1-四张核心实拍图) · [输入框 6 槽额度栏](#2-输入框底部-6-槽常驻额度栏) · [蓝→橙黄→红渐变](#3-剩余量优先--蓝橙黄红连续渐变) · [每轮内联用量卡](#4-对话流每轮回答底部内联用量摘要卡) · [安装](#安装) · [功能](#功能) · [开发](#本地开发)
+[**✨ 核心创新（置顶）**](#核心创新亮点置顶) · [四张实拍图](#1-四张核心实拍图) · [顶栏/输入栏双池额度](#2-输入框底部-6-槽常驻额度栏) · [蓝→橙黄→红渐变](#3-剩余量优先--蓝橙黄红连续渐变) · [每轮内联用量卡](#4-对话流每轮回答底部内联用量摘要卡) · [安装](#安装) · [功能](#功能) · [开发](#本地开发)
 
 <br />
 
@@ -79,27 +80,26 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 
 <a id="2-输入框底部-6-槽常驻额度栏"></a>
 
-### 2. 输入框底部 6 槽常驻额度栏
+### 2. 顶栏 / 输入框常驻双池全量额度栏（`v1.6.0` 已适配最新双池体系）
 
-相比上游原版只支持顶部/输入栏最多 5 个纯文字指标，本版本针对高频多模型切换场景重构了输入框胶囊：
+相比上游原版只包含旧版单一配额提示、缺乏细粒度多池直观呈现，本版本重构了胶囊配额槽位与模型阵容适配：
 
-- **5 → 6 槽位扩容 + `Argon` 周限槽位**：突破原版 `MAX_TOPBAR_SLOTS = 5` 上限至 **`6` 项**，新增 **`argon_weekly`（`A周`）**，可将官方 5 路模型限额与当前对话上下文全部放进同一行：`G周 | G5h | C周 | C5h | A周 | 上下文`。
-- **迷你圆形进度环 + 解除 `52px` 截断**：为 `G周`、`G5h`、`C周`、`C5h`、`A周` 在百分比左侧嵌入与上下文指示器同款的 SVG 圆形进度环，并移除原版 `.wm-seg-quota` 的 `width: 52px` 裁切限制，彻底消除 `100%` 变成 `1...` 的省略号问题。
-- **贴合输入框工作流**：直接停靠在底部输入框工具栏左侧，既不挤占顶部标题栏空间，也不用频繁跳出对话去翻看 Usage 面板。
+- **统一适配最新「2 大池 · 4 项限额 + 上下文」**：随 Antigravity 2026-11-24 模型调整（Argon 合并回 Gemini 池、`Gemini 4 Neon` 全面上线），自动下线已失效的 `argon_weekly` (`A周 --%`)，一排直观显示 **`G周 | G5h | C周 | C5h | 上下文`**（支持 `MAX_TOPBAR_SLOTS = 6` 自定义扩展），全面支持停靠在顶部标题栏（`dual`）或底部输入框（`composer`）。
+- **迷你圆形进度环 + 解除 `52px` 截断**：为 `G周`、`G5h`、`C周`、`C5h` 在百分比左侧嵌入与上下文指示器同款的 SVG 圆形进度环，并移除原版 `.wm-seg-quota` 的 `width: 52px` 裁切限制，彻底消除 `100%` 变成 `1...` 的省略号问题。
+- **全模型识别无盲区**：完整覆盖 `Gemini 4 Neon`（`M532`~`M535` 四档思考枚举）、`Gemini 4 Carbon`、`Gemini 4 Hydrogen`、`Orchestrator Gemini 4 Carbon High` 与 `Claude Opus/Sonnet 5.5`、`GPT-OSS 120B`。
 
 <details>
-<summary>同款输入框 6 槽配置参考（在「偏好设置 → 界面编排」中可直接勾选，或对应 settings.json 字段）</summary>
+<summary>最新双池 5 槽配置参考（支持顶栏 dual 或输入框 composer 挂载）</summary>
 
 ```json
 {
-  "windowMountMode": "composer",
+  "windowMountMode": "dual",
   "enableWindowOverlay": true,
   "topbarCapsuleSlots": [
     "gemini_weekly",
     "gemini_5h",
     "claude_weekly",
     "claude_5h",
-    "argon_weekly",
     "context"
   ]
 }
@@ -142,24 +142,25 @@ Google Antigravity 2.0、Antigravity IDE 与 Antigravity CLI 的本地用量、�
 - **第一层 · 轮次定位与总耗时**：
   - 左侧显示真实对话轮次与完成时间（如 `#第30轮 · 完成于 01:12`），右侧汇总本轮后台工具链与推理共经历了多少步及总耗时（如 `共 38 步 · 总耗时 17m 24s`）。
 - **第二层 · 本轮模型角色与额度池拆解（揭开黑盒路由）**：
-  - 自动将本轮所有调用按 **角色标签**（蓝色 `[主控]`、绿色 `[执行]`、紫色 `[子代理]`、琥珀色 `[压缩]`）与 **所属额度池**（`[Argon池]`、`[Gemini池]`、`[Claude池]`、`[Carbon池]`）归并排序。
-  - 直观展示每个模型的调用次数、吞吐 Token 总量及本轮占比（例如单轮内由 `[主控] Gemini 4 Argon (High)` 负责 37 次核心规划推理，并在后台触发 1 次 `[压缩] Gemini 4 Argon (High)` 自动上下文压缩，一目了然）。
-- **第三层 · 本轮真实额度扣减与上下文净变化**：
-  - **额度扣减**：严格按照本轮实际调用的模型所属额度池与周期容量，精确计算本轮回答吃掉了多少百分比的限额（例如仅使用 `Gemini 4 Argon` 时只扣减 `A周`；若同时调度了 `Gemini` 池的 `worker-agy-hydrogen` 则同步展示 `G5h | G周 | A周`）；当前总剩余百分比直接看下方常驻的 6 槽输入框胶囊，上下分工明确、零重复信息。
+  - 自动将本轮所有调用按 **角色标签**（蓝色 `[主控]`、绿色 `[执行]`、紫色 `[子代理]`、琥珀色 `[压缩]`）与 **所属额度池**（`[Gemini池]`、`[Claude/GPT池]`）归并排序。
+  - 直观展示每个模型的调用次数、吞吐 Token 总量及本轮占比（兼容 `Gemini 4 Neon`、`Gemini 4 Carbon`、`Orchestrator Gemini 4 Carbon High` 与 `worker-agy-hydrogen`）。
+- **第三层 · 本轮真实额度扣减与上下文净变化（带跨重置周期校准）**：
+  - **额度扣减**：严格按照本轮实际调用的模型所属额度池与当前周期容量精确计算百分比扣减（Google 全系统一扣减 `G5h | G周`，第三方模型统一扣减 `C5h | C周`）；并内置跨配额重置周期校验与 `usedPct` 上限保护，确保新周期刚重置时旧历史轮次数值不会虚高。当前总剩余百分比直接看上方/下方常驻额度胶囊，上下分工明确、零重复信息。
   - **上下文净增减**：右侧展示本轮对话带来的主上下文窗口变化百分比（普通轮次显示如 `本轮 +4.8%`，当本轮触发自动上下文压缩释放空间时则直观显示负向释放量如 `本轮 -31.2%`）。
 - **虚拟滚动 (`trajectorySlice`) 精确对齐 & 流式生成防闪烁**：
   - 通过读取宿主 DOM 节点的 React Fiber `container.steps[].metadata.createdAt` 时间戳与后端 `recentSteps` 精确匹配真实轮次序号，即使在数十轮长对话中上下滚动触发虚拟列表分页卸载/重挂载，轮次编号也绝不错位；当前正在流式输出的回答自动抑制挂载，回答完成后立即平滑呈现。
 
 ### 相对上游原版的完整改进清单
 
-| 维度 | 上游原版 (`yuhuan-dev/antigravity-usage-monitor`) | 本定制增强版 (`tiantutu798-bit/Gemini`) |
+| 维度 | 上游原版 (`yuhuan-dev/antigravity-usage-monitor`) | 本定制增强版 (`tiantutu798-bit/Gemini` `v1.6.0`) |
 | :--- | :--- | :--- |
-| **每轮对话内联账单** | 无内联统计，需手动打开面板翻查单步表格，无单轮额度扣减换算 | **每次回答正下方自动挂载三层摘要卡**：展示 `[主控]/[执行]/[子代理]/[压缩]` 模型明细、**本轮额度池扣减 (`G5h / G周 / A周 / C5h / C周`)** 与 **本轮上下文净增减** |
-| **底部输入框槽位** | 最多 5 项，缺 `argon_weekly`，纯文字且长项易触发 `52px` 截断 | **扩容至 6 项**，新增 `A周`，5 个额度统一配迷你圆环且永不截断 |
+| **每轮对话内联账单** | 无内联统计，需手动打开面板翻查单步表格，无单轮额度扣减换算 | **每次回答正下方自动挂载三层摘要卡**：展示 `[主控]/[执行]/[子代理]/[压缩]` 模型明细、**双池真实扣减 (`G5h / G周 / C5h / C周`)**（带跨重置周期保护）与 **本轮上下文净增减** |
+| **最新模型与配额池** | `MODEL_PLACEHOLDER_M537` 易误判、缺 Neon 档位，未及时下线废弃 `A周` 死槽 | **完整收录 `Gemini 4 Neon` (`M532`~`M535`) 与新版 `Orchestrator Gemini 4 Carbon High`**；自动剔除失效 `argon_weekly`，对齐最新 **Gemini + Claude & GPT 双池** |
+| **胶囊槽位与圆环** | 最多 5 项纯文字，长项易触发 `52px` 截断 | **支持最多 6 槽扩容**，4 路官方限额配齐同款 SVG 迷你圆环且永不截断 |
 | **可用额度排序** | `Gemini → Argon → Claude & GPT`，组内 `5h` 在上、`周限` 在下 | **对齐官方 Usage**：`Gemini → Claude & GPT → Argon`，组内 **`周限` 在上、`5h` 在下** |
 | **进度条与右侧文案** | 进度条按「已用比例」递增，文案同时显示已用与剩余 | 进度条直接展示 **「剩余比例」**，右侧精简为 **`剩余 XX.X%`** |
 | **色彩预警机制** | 固定蓝 + 70%/85% 两档硬切换；底部文字圆环样式不统一 | **蓝 (`#3b82f6`) → 橙黄 (`#f59e0b`) → 红 (`#ef4444`) 连续渐变**，横条与 5 个圆环双端实时同步 |
-| **模型归类准确度** | `MODEL_PLACEHOLDER_M537` 易被误归类为 `orchestrator-carbon` | 补全 [`pricing-catalog.json`](pricing-catalog.json) 与识别规则，准确识别为 **`Orchestrator (Neon)`** |
+| **模型归类准确度** | 部分新版 placeholder 未收录或 `Orchestrator` 标识误归类 | 补全 [`pricing-catalog.json`](pricing-catalog.json) (`v2026.11.24.1`) 与识别规则，准确识别 **`Gemini 4 Neon` / `Orchestrator (Neon/Carbon)`** |
 | **macOS 2.33.0+ 启动** | 裸启动缺失 `--remote-debugging-port` 时需手动重拉 | 新增受保护的 `autoRelaunchDebug`，通过外部终端重拉并 **确认额度栏挂载成功后再等 3 秒自动关窗** |
 | **插件清单名称** | 英文默认名称 | [`plugin.json`](plugin.json) 本地化显示名为「**用量与额度监控**」 |
 

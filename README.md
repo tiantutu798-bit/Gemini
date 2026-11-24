@@ -6,6 +6,7 @@
 
 Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antigravity IDE, and Antigravity CLI (derived from [`yuhuan-dev/antigravity-usage-monitor`](https://github.com/yuhuan-dev/antigravity-usage-monitor)), with no external npm dependencies.
 
+[![Version](https://img.shields.io/badge/version-v1.6.0-10b981?style=flat-square)](https://github.com/tiantutu798-bit/Gemini/releases/tag/v1.6.0)
 [![Stars](https://img.shields.io/github/stars/tiantutu798-bit/Gemini?style=flat-square&color=f59e0b)](https://github.com/tiantutu798-bit/Gemini/stargazers)
 [![License](https://img.shields.io/github/license/tiantutu798-bit/Gemini?style=flat-square&color=3b82f6)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0%20npm%20packages-10b981?style=flat-square)](#local-development)
@@ -13,7 +14,7 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
 
 **English** · [简体中文完整介绍 (README.zh-CN.md)](README.zh-CN.md)
 
-[**✨ Key Innovations (Pinned)**](#highlighted-innovations-pinned) · [4 Core Screenshots](#1-live-showcase-4-core-screenshots) · [6-Slot Composer Bar](#2-permanent-6-slot-composer-quota-bar) · [Remaining Gradient](#3-remaining-first-bars--continuous-blueamberred-gradient) · [Per-Turn Inline Card](#4-per-turn-inline-usage-summary-card-in-chat-stream) · [Installation](#installation) · [Features](#features) · [Development](#local-development)
+[**✨ Key Innovations (Pinned)**](#highlighted-innovations-pinned) · [4 Core Screenshots](#1-live-showcase-4-core-screenshots) · [2-Pool Capsule Bar](#2-permanent-2-pool-capsule-quota-bar-v160-dual-pool-alignment) · [Remaining Gradient](#3-remaining-first-bars--continuous-blueamberred-gradient) · [Per-Turn Inline Card](#4-per-turn-inline-usage-summary-card-in-chat-stream) · [Installation](#installation) · [Features](#features) · [Development](#local-development)
 
 <br />
 
@@ -75,27 +76,26 @@ Local usage, speed, context, and quota monitor for Google Antigravity 2.0, Antig
   </tr>
 </table>
 
-### 2. Permanent 6-Slot Composer Quota Bar
+### 2. Permanent 2-Pool Capsule Quota Bar (`v1.6.0` Dual-Pool Alignment)
 
-Unlike upstream (which caps slots at 5 text-only items and lacks an `Argon Weekly` slot), this edition redesigns the composer bar for multi-pool workflows:
+Unlike upstream (which lacks multi-pool per-slot ring indicators and quick-glance ordering), this edition redesigns the capsule bar for the latest Antigravity model & quota lineup:
 
-- **Expanded 5 → 6 Slots + `argon_weekly`**: Raised `MAX_TOPBAR_SLOTS` from `5` to **`6`** and added **`argon_weekly` (`A周` / `AWk`)**, fitting all 5 official quota windows plus live context usage in one composer row: `G周 | G5h | C周 | C5h | A周 | Context`.
-- **Circular Quota Rings + No `52px` Clipping**: Embedded circular SVG progress rings matching the context indicator on all 5 quota tags and removed the hardcoded `52px` quota label width constraint so `100%` never truncates to ellipses.
-- **Zero Context-Switching**: Stays permanently anchored left of the composer mode control without crowding the window titlebar or opening the Usage settings page.
+- **Aligned to the Latest 2-Pool / 4-Window Lineup + Context**: Matches the 2026-11-24 Antigravity quota update (merging Argon back into Gemini alongside `Gemini 4 Neon`), automatically strips deprecated `argon_weekly` (`A周 --%`), and displays **`G周 | G5h | C周 | C5h | Context`** (supports up to `MAX_TOPBAR_SLOTS = 6`) in either the top titlebar (`dual`) or composer bar (`composer`).
+- **Circular Quota Rings + No `52px` Clipping**: Embedded circular SVG progress rings matching the context indicator on all official quota tags and removed the hardcoded `52px` quota label width constraint so `100%` never truncates to ellipses.
+- **Full New-Model Coverage**: Recognizes all 4 `Gemini 4 Neon` tiers (`MODEL_PLACEHOLDER_M532`–`M535`), `Gemini 4 Carbon`, `Gemini 4 Hydrogen`, `Orchestrator Gemini 4 Carbon High`, `Claude Opus/Sonnet 5.5`, and `GPT-OSS 120B`.
 
 <details>
-<summary>Recommended 6-slot configuration (UI: Preferences → Structure, or settings.json)</summary>
+<summary>Recommended 5-slot dual-pool configuration (supports Titlebar `dual` or Composer `composer`)</summary>
 
 ```json
 {
-  "windowMountMode": "composer",
+  "windowMountMode": "dual",
   "enableWindowOverlay": true,
   "topbarCapsuleSlots": [
     "gemini_weekly",
     "gemini_5h",
     "claude_weekly",
     "claude_5h",
-    "argon_weekly",
     "context"
   ]
 }
@@ -129,22 +129,23 @@ In long multi-turn conversations, global totals or raw step tables make it diffi
 </p>
 
 - **Row 1 · Turn Identity & Total Duration**: Displays the exact turn index, completion timestamp (`#第30轮 · 完成于 01:12`), total model/tool steps, and cumulative wall-clock duration (`共 38 步 · 总耗时 17m 24s`).
-- **Row 2 · Role-Tagged Model & Quota-Pool Breakdown**: Groups all calls in the turn by role badge (`[主控]` Main / `[执行]` Exec / `[子代理]` Subagent / `[压缩]` Compact) and quota pool (`[Argon池]` / `[Gemini池]` / `[Claude池]` / `[Carbon池]`), showing call counts, token throughput, and percentage share within the turn.
-- **Row 3 · Per-Turn Quota Deduction & Net Context Delta**:
-  - **Quota Deduction**: Computes the percentage drop strictly for the quota pools actually used during the turn (e.g., Argon-only turns deduct only `A周`, whereas turns that also invoke Gemini-pool models deduct `G5h | G周 | A周`), complementing the live remaining percentages in the bottom composer bar.
+- **Row 2 · Role-Tagged Model & Quota-Pool Breakdown**: Groups all calls in the turn by role badge (`[主控]` Main / `[执行]` Exec / `[子代理]` Subagent / `[压缩]` Compact) and quota pool (`[Gemini池]` / `[Claude/GPT池]`), showing call counts, token throughput, and percentage share within the turn across `Gemini 4 Neon`, `Gemini 4 Carbon`, `Orchestrator Gemini 4 Carbon High`, and `worker-agy-hydrogen`.
+- **Row 3 · Per-Turn Quota Deduction & Net Context Delta (With Reset-Cycle Protection)**:
+  - **Quota Deduction**: Computes the percentage drop strictly for the active quota pools touched during the turn (`G5h | G周` for Google models; `C5h | C周` for Claude & GPT models), with reset-cycle boundary checks and `usedPct` capping so historical turns never spike right after a quota reset.
   - **Context Net Delta**: Shows how much the main context window grew or shrank during the turn (e.g., `+4.8%` on normal turns, or `-31.2%` when an auto-compaction step frees context capacity).
 - **Virtual-Scroll (`trajectorySlice`) Alignment & Streaming Suppression**: Matches DOM `[data-testid="agent-response"]` nodes against backend `recentSteps` via React Fiber `container.steps[].metadata.createdAt` timestamps so virtualized long chats always display their true turn number, and suppresses mounting while a turn is actively streaming.
 
 ### Full Diff Summary vs. Upstream
 
-| Area | Upstream (`yuhuan-dev/antigravity-usage-monitor`) | This Edition (`tiantutu798-bit/Gemini`) |
+| Area | Upstream (`yuhuan-dev/antigravity-usage-monitor`) | This Edition (`tiantutu798-bit/Gemini` `v1.6.0`) |
 | :--- | :--- | :--- |
-| **Per-Turn Inline Summary** | None (requires opening popover step table; no per-turn quota drop calculation) | **3-row inline card below every completed response**: role/pool model breakdown, **per-turn quota drop (`G5h / G周 / A周 / C5h / C周`)**, and **net context delta** |
-| **Composer Slots** | Up to 5 slots, no `argon_weekly`, fixed `52px` width clipping | **6 slots**, adds `argon_weekly`, SVG progress rings on all 5 quotas, no truncation |
+| **Per-Turn Inline Summary** | None (requires opening popover step table; no per-turn quota drop calculation) | **3-row inline card below every completed response**: role/pool model breakdown, **2-pool quota drop (`G5h / G周 / C5h / C周`)** with reset-cycle protection, and **net context delta** |
+| **Model & Pool Alignment** | Missing `M532`–`M535` Neon enums; stale `argon_weekly` slot leaves `--%` | **Full `Gemini 4 Neon` & `Orchestrator Gemini 4 Carbon High` support**; auto-migrates deprecated `argon_weekly` to clean **Gemini + Claude & GPT pools** |
+| **Capsule Slots** | Up to 5 text-only slots with `52px` width clipping | **Up to 6 slots**, SVG progress rings on all official quotas, zero truncation |
 | **Quota Card Order** | `Gemini → Argon → Claude & GPT`; `5h` above `Weekly` | **Matches Official Usage**: `Gemini → Claude & GPT → Argon`; **`Weekly` above `5h`** |
 | **Bars & Meta Text** | Bar fills by `used %`, text shows both used and remaining | Bar fills by **`remaining %`**, text shows **remaining only** |
 | **Color System** | Hard thresholds at 70%/85%; static ring styling | **Continuous blue (`#3b82f6`) → amber (`#f59e0b`) → red (`#ef4444`)** synced across bars and 5 composer rings |
-| **Model Attribution** | `MODEL_PLACEHOLDER_M537` could fall back to `orchestrator-carbon` | Added [`pricing-catalog.json`](pricing-catalog.json) & formatter rules for **`Orchestrator (Neon)`** |
+| **Model Attribution** | Missing newest placeholders; `MODEL_PLACEHOLDER_M537` could fall back to `orchestrator-carbon` | Updated [`pricing-catalog.json`](pricing-catalog.json) (`2026.11.24.1`) & formatters for **`Gemini 4 Neon` & `Orchestrator (Neon/Carbon)`** |
 | **macOS 2.33.0+ Launch** | Manual relaunch needed if `--remote-debugging-port` is absent | Guarded `autoRelaunchDebug` opens macOS `Terminal`, verifies live bridge mount, waits 3s, and closes itself |
 | **Manifest Name** | Default English manifest name | Localized [`plugin.json`](plugin.json) `displayName` (`用量与额度监控`) |
 
